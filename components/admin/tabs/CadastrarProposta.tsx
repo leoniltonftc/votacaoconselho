@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Proposal, ProposalSheetsConfig, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
 
@@ -61,17 +61,29 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ onCreateProposal,
     const [municipio, setMunicipio] = useState('');
     const [descricao, setDescricao] = useState('');
     
-    const [sheetUrl, setSheetUrl] = useState(proposalSheetsConfig?.proposals_sheet_url || '');
-    const [sheetName, setSheetName] = useState(proposalSheetsConfig?.proposals_sheet_name || 'Propostas');
-    const [tituloCol, setTituloCol] = useState(proposalSheetsConfig?.titulo_column || 'A');
-    const [eixoCol, setEixoCol] = useState(proposalSheetsConfig?.eixo_column || 'B');
-    const [abrangenciaCol, setAbrangenciaCol] = useState(proposalSheetsConfig?.abrangencia_column || 'C');
-    const [regionalSaudeCol, setRegionalSaudeCol] = useState(proposalSheetsConfig?.regional_saude_column || 'D');
-    const [municipioCol, setMunicipioCol] = useState(proposalSheetsConfig?.municipio_column || 'E');
-    const [descricaoCol, setDescricaoCol] = useState(proposalSheetsConfig?.descricao_column || 'F');
+    const [sheetUrl, setSheetUrl] = useState('');
+    const [sheetName, setSheetName] = useState('Propostas');
+    const [tituloCol, setTituloCol] = useState('A');
+    const [eixoCol, setEixoCol] = useState('B');
+    const [abrangenciaCol, setAbrangenciaCol] = useState('C');
+    const [regionalSaudeCol, setRegionalSaudeCol] = useState('D');
+    const [municipioCol, setMunicipioCol] = useState('E');
+    const [descricaoCol, setDescricaoCol] = useState('F');
     const [loadedProposals, setLoadedProposals] = useState<LoadedProposal[]>([]);
     const [isLoadingProposals, setIsLoadingProposals] = useState(false);
 
+    useEffect(() => {
+        if (proposalSheetsConfig) {
+            setSheetUrl(proposalSheetsConfig.proposals_sheet_url || '');
+            setSheetName(proposalSheetsConfig.proposals_sheet_name || 'Propostas');
+            setTituloCol(proposalSheetsConfig.titulo_column || 'A');
+            setEixoCol(proposalSheetsConfig.eixo_column || 'B');
+            setAbrangenciaCol(proposalSheetsConfig.abrangencia_column || 'C');
+            setRegionalSaudeCol(proposalSheetsConfig.regional_saude_column || 'D');
+            setMunicipioCol(proposalSheetsConfig.municipio_column || 'E');
+            setDescricaoCol(proposalSheetsConfig.descricao_column || 'F');
+        }
+    }, [proposalSheetsConfig]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
