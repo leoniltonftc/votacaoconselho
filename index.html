@@ -1,0 +1,161 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistema de Votação</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+      body {
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      .vote-button {
+          transition: all 0.3s ease;
+          transform: scale(1);
+      }
+      .vote-button:hover {
+          transform: scale(1.05);
+      }
+      .vote-button:active {
+          transform: scale(0.95);
+      }
+      .result-bar {
+          transition: width 0.8s ease-in-out;
+      }
+      /* Animações para a tela de boas-vindas */
+      @keyframes fade-in {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes pulse-slow {
+        0%, 100% {
+          transform: scale(1);
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+        }
+        50% {
+          transform: scale(1.02);
+          box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+        }
+      }
+      @keyframes slide-in-up {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes blob {
+        0% { transform: translate(0px, 0px) scale(1); }
+        33% { transform: translate(30px, -50px) scale(1.1); }
+        66% { transform: translate(-20px, 20px) scale(0.9); }
+        100% { transform: translate(0px, 0px) scale(1); }
+      }
+
+      .animate-fade-in {
+        animation: fade-in 0.8s ease-out forwards;
+      }
+      .animate-pulse-slow {
+        animation: pulse-slow 2.5s infinite;
+      }
+      .animate-slide-in-up {
+        animation: slide-in-up 0.7s ease-out forwards;
+        opacity: 0; /* Começa invisível */
+      }
+      .animate-blob {
+        animation: blob 7s infinite;
+      }
+      .animation-delay-2000 {
+        animation-delay: 2s;
+      }
+      .animation-delay-4000 {
+        animation-delay: 4s;
+      }
+
+      /* Estilos personalizados para os cards da tela de boas-vindas */
+      .welcome-card {
+        background-color: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(209, 213, 219, 0.3);
+        border-radius: 1.25rem;
+        padding: 1.5rem;
+        text-align: center;
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
+      }
+      .welcome-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+      }
+      .card-icon {
+        width: 4rem;
+        height: 4rem;
+        border-radius: 9999px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin: 0 auto 1rem;
+      }
+      .card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+      }
+      .card-list {
+        list-style-position: inside;
+        text-align: left;
+        color: #4b5563; /* text-gray-600 */
+        font-size: 0.95rem;
+        line-height: 1.6;
+      }
+      .card-list li {
+        margin-bottom: 0.5rem;
+      }
+
+      /* Print Styles */
+      @media print {
+        body.is-printing #root > div > div > *:not(.is-printing-section) {
+          display: none !important;
+        }
+        body.is-printing {
+          background: #fff !important;
+        }
+        .is-printing-section {
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          margin: 0;
+          padding: 1in;
+          box-shadow: none !important;
+          border: none !important;
+          max-height: none !important;
+          overflow-y: visible !important;
+        }
+        .is-printing-section .no-print {
+          display: none !important;
+        }
+        .is-printing-section .printable-proposal {
+          page-break-inside: avoid;
+          border-bottom: 1px solid #ccc;
+          padding-bottom: 1rem;
+          margin-bottom: 1rem;
+        }
+      }
+
+    </style>
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.29.1",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0"
+  }
+}
+</script>
+</head>
+<body class="min-h-full bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div id="root" class="min-h-full"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+</html>
