@@ -255,7 +255,7 @@ const App: React.FC = () => {
             total_votos: votes.length,
             data_votacao: new Date().toISOString(),
             resultado_final: resultadoFinal,
-            status: ProposalStatus.VOTED
+            status: ProposalStatus.VOTADA
         };
         await dataSdk.update(updatedProposal);
     };

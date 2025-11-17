@@ -24,7 +24,8 @@ const extractSheetId = (url: string) => {
 };
 
 const buildSheetsApiUrl = (sheetId: string, sheetName: string) => {
-    return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+    // Add cache-busting parameter to ensure fresh data is loaded.
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&_=${new Date().getTime()}`;
 };
 
 const parseCsvLine = (line: string): string[] => {
@@ -89,7 +90,7 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ onCreateProposal,
             descricao,
             data_criacao: new Date().toISOString(),
             timestamp: new Date().toISOString(),
-            status: ProposalStatus.PENDING,
+            status: ProposalStatus.PENDENTE,
         };
         onCreateProposal(newProposal);
         showAdminMessage('success', 'Proposta cadastrada com sucesso!');

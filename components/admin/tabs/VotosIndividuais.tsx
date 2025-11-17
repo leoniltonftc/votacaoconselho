@@ -77,9 +77,9 @@ const VotosIndividuais: React.FC<VotosIndividuaisProps> = ({ votes, proposals })
                 const voteData = [
                     v.user_code,
                     proposal?.titulo || 'Proposta Desconhecida',
-                    proposal?.descricao || 'N/A',
-                    proposal?.regional_saude || 'N/A',
-                    proposal?.municipio || 'N/A',
+                    proposal?.descricao || 'Não disponível',
+                    proposal?.regional_saude || 'Não disponível',
+                    proposal?.municipio || 'Não disponível',
                     v.voto,
                     new Date(v.timestamp).toLocaleString(),
                 ];

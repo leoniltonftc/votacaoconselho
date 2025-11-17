@@ -20,7 +20,8 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig 
     }
 
     const buildSheetsApiUrl = (sheetId: string, sheetName: string, range: string) => {
-        return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&range=${encodeURIComponent(range)}`;
+        // Add cache-busting parameter to prevent issues with stale data on different devices.
+        return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&range=${encodeURIComponent(range)}&_=${new Date().getTime()}`;
     }
 
     const fetchGoogleSheetsData = async (config: SheetsConfig) => {

@@ -1,5 +1,5 @@
 {
   "name": "Sistema de Votação online",
-  "description": "A real-time voting system application with user authentication, an admin panel, proposal management, and Google Sheets integration for a flexible and powerful voting experience.",
+  "description": "Um aplicativo de sistema de votação em tempo real com autenticação de usuário, painel de administração, gerenciamento de propostas e integração com o Google Sheets para uma experiência de votação flexível e poderosa.",
   "requestFramePermissions": []
 }

@@ -52,7 +52,8 @@ const SheetsAuthConfig: React.FC<SheetsAuthConfigProps> = ({ sheetsConfig, onSav
             if (!sheetIdMatch) throw new Error("URL inválida.");
             
             const sheetId = sheetIdMatch[1];
-            const apiUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+            // Add cache-busting parameter to ensure the test checks for fresh data.
+            const apiUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&_=${new Date().getTime()}`;
             
             const response = await fetch(apiUrl);
             if (!response.ok) throw new Error(`Falha na conexão: ${response.statusText}`);

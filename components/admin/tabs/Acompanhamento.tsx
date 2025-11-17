@@ -25,7 +25,7 @@ const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
     
     const stats = {
         total: proposals.length,
-        pendentes: proposals.filter(p => !p.status || p.status === 'PENDING').length,
+        pendentes: proposals.filter(p => !p.status || p.status === ProposalStatus.PENDENTE).length,
         aprovadas: proposals.filter(p => p.resultado_final === ProposalResult.APROVADA).length,
         rejeitadas: proposals.filter(p => p.resultado_final === ProposalResult.REJEITADA).length,
     };
@@ -78,8 +78,8 @@ const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
                     proposal.descricao,
                     proposal.regional_saude,
                     proposal.municipio,
-                    proposal.status || ProposalStatus.PENDING,
-                    proposal.resultado_final || 'N/A',
+                    proposal.status || ProposalStatus.PENDENTE,
+                    proposal.resultado_final || 'Pendente',
                 ];
                 tableRows.push(proposalData);
             });
@@ -129,10 +129,10 @@ const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
                     escapeCsvCell(p.id), escapeCsvCell(p.titulo), escapeCsvCell(p.categoria),
                     escapeCsvCell(p.abrangencia), escapeCsvCell(p.regional_saude), escapeCsvCell(p.municipio), 
                     escapeCsvCell(p.descricao), escapeCsvCell(p.data_criacao),
-                    escapeCsvCell(p.status || ProposalStatus.PENDING), escapeCsvCell(p.votos_sim || 0),
+                    escapeCsvCell(p.status || ProposalStatus.PENDENTE), escapeCsvCell(p.votos_sim || 0),
                     escapeCsvCell(p.votos_nao || 0), escapeCsvCell(p.votos_abstencao || 0),
-                    escapeCsvCell(p.total_votos || 0), escapeCsvCell(p.data_votacao || 'N/A'),
-                    escapeCsvCell(p.resultado_final || 'N/A')
+                    escapeCsvCell(p.total_votos || 0), escapeCsvCell(p.data_votacao || 'Pendente'),
+                    escapeCsvCell(p.resultado_final || 'Pendente')
                 ].join(',');
                 csvRows.push(row);
             });

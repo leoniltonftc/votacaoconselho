@@ -10,8 +10,8 @@ export interface Vote {
 }
 
 export enum ProposalStatus {
-    PENDING = 'PENDING',
-    VOTED = 'VOTED'
+    PENDENTE = 'PENDENTE',
+    VOTADA = 'VOTADA'
 }
 
 export enum ProposalResult {
