@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
 import { SheetsConfig } from '../types';
@@ -7,6 +6,32 @@ interface AuthSectionProps {
     onAuthenticate: (code: string) => void;
     sheetsConfig: SheetsConfig | null;
 }
+
+// Adicionada função de análise de CSV robusta para lidar com valores que contêm vírgulas e aspas.
+const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+            if (inQuotes && line[i + 1] === '"') { // Lida com aspas duplas escapadas ""
+                current += '"';
+                i++; // Pula a próxima aspa
+            } else {
+                inQuotes = !inQuotes;
+            }
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim().replace(/^"|"$/g, ''));
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    result.push(current.trim().replace(/^"|"$/g, ''));
+    return result;
+}
+
 
 const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig }) => {
     const [password, setPassword] = useState('');
@@ -47,13 +72,15 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig 
         if (!sheetsConfig) throw new Error("Google Sheets não configurado.");
 
         const csvText = await fetchGoogleSheetsData(sheetsConfig);
-        const lines = csvText.trim().split('\n');
+        // Melhorado para lidar com diferentes finais de linha (Windows/Unix)
+        const lines = csvText.trim().split(/\r?\n/);
         
         const usernameColIndex = sheetsConfig.username_column.toUpperCase().charCodeAt(0) - 65;
         const passwordColIndex = sheetsConfig.password_column.toUpperCase().charCodeAt(0) - 65;
 
         for (const line of lines) {
-            const values = line.split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+            // Trocado split(',') por uma função de análise de CSV mais robusta.
+            const values = parseCsvLine(line);
             const sheetPassword = values[passwordColIndex];
             if (sheetPassword === pass) {
                 return { success: true, auxiliaryData: values[usernameColIndex] || 'Usuário Autenticado' };
