@@ -15,6 +15,7 @@ interface AdminPanelProps {
     votingStatus: VotingStatus;
     sheetsConfig: SheetsConfig | null;
     proposalSheetsConfig: ProposalSheetsConfig | null;
+    currentProposalId?: string;
     onStartVoting: () => void;
     onEndVoting: () => void;
     onNewVoting: () => void;
@@ -195,6 +196,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 votes={props.votes}
                 proposals={props.proposals}
                 proposalSheetsConfig={props.proposalSheetsConfig}
+                currentProposalId={props.currentProposalId}
                 onSaveProposalSheetsConfig={props.onSaveProposalSheetsConfig}
                 onCreateProposal={props.onCreateProposal}
                 onUpdateProposal={props.onUpdateProposal}

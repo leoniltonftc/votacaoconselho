@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser, AdminUser } from './types';
@@ -549,6 +548,7 @@ const App: React.FC = () => {
                     votingStatus={votingStatus}
                     sheetsConfig={sheetsConfig}
                     proposalSheetsConfig={proposalSheetsConfig}
+                    currentProposalId={currentProposal?.id}
                     onStartVoting={handleStartVoting}
                     onEndVoting={handleEndVoting}
                     onNewVoting={handleNewVoting}

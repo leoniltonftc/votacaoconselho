@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { Proposal, Vote, CurrentProposalRecord, ProposalSheetsConfig } from '../../types';
 import CadastrarProposta from './tabs/CadastrarProposta';
@@ -12,6 +11,7 @@ interface ProposalManagementProps {
     votes: Vote[];
     proposals: Proposal[];
     proposalSheetsConfig: ProposalSheetsConfig | null;
+    currentProposalId?: string;
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
     onSaveProposalSheetsConfig: (config: ProposalSheetsConfig) => void;
     onCreateProposal: (proposal: Proposal) => void;
@@ -41,6 +41,7 @@ const ProposalManagement: React.FC<ProposalManagementProps> = (props) => {
             case 'selecionar':
                 return <SelecionarProposta 
                     proposals={props.proposals}
+                    currentProposalId={props.currentProposalId}
                     onSelectProposal={props.onSelectProposal}
                     showAdminMessage={props.showAdminMessage}
                     onResetProposalVote={props.onResetProposalVote}
