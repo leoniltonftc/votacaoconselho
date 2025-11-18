@@ -3,6 +3,7 @@ import { Proposal, ProposalSheetsConfig, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
 
 interface CadastrarPropostaProps {
+    proposals: Proposal[];
     onCreateProposal: (proposal: Proposal) => void;
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
     proposalSheetsConfig: ProposalSheetsConfig | null;
@@ -53,7 +54,7 @@ const parseCsvLine = (line: string): string[] => {
 }
 
 
-const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ onCreateProposal, showAdminMessage, proposalSheetsConfig, onSaveProposalSheetsConfig }) => {
+const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCreateProposal, showAdminMessage, proposalSheetsConfig, onSaveProposalSheetsConfig }) => {
     const [titulo, setTitulo] = useState('');
     const [categoria, setCategoria] = useState('');
     const [abrangencia, setAbrangencia] = useState('');
@@ -238,6 +239,8 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ onCreateProposal,
         }
     };
 
+    const registeredProposalTitles = new Set(proposals.map(p => p.titulo));
+    const availableProposalsFromSheet = loadedProposals.filter(p => !registeredProposalTitles.has(p.titulo));
 
     return (
         <div>
@@ -290,19 +293,30 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ onCreateProposal,
                 </div>
                  {loadedProposals.length > 0 && (
                     <div className="mt-4">
-                        <label htmlFor="select-proposal-title" className="block text-sm font-medium text-blue-700 mb-2">Selecionar Proposta da Planilha:</label>
-                        <select
-                            id="select-proposal-title"
-                            onChange={handleSelectProposal}
-                            defaultValue=""
-                            className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg"
-                        >
-                            <option value="">Escolha uma proposta para preencher automaticamente</option>
-                            {loadedProposals.map((p, index) => (
-                                <option key={index} value={index}>{p.titulo}</option>
-                            ))}
-                        </select>
-                        <p className="text-xs text-blue-600 mt-1">Selecione um título para preencher os campos do formulário.</p>
+                        {availableProposalsFromSheet.length > 0 ? (
+                            <>
+                                <label htmlFor="select-proposal-title" className="block text-sm font-medium text-blue-700 mb-2">Selecionar Proposta da Planilha:</label>
+                                <select
+                                    id="select-proposal-title"
+                                    onChange={handleSelectProposal}
+                                    defaultValue=""
+                                    className="w-full px-3 py-2 text-sm border border-blue-300 rounded-lg"
+                                >
+                                    <option value="">Escolha uma proposta para preencher automaticamente</option>
+                                    {loadedProposals.map((p, index) => {
+                                        if (!registeredProposalTitles.has(p.titulo)) {
+                                            return <option key={index} value={index}>{p.titulo}</option>;
+                                        }
+                                        return null;
+                                    })}
+                                </select>
+                                <p className="text-xs text-blue-600 mt-1">Selecione um título para preencher os campos do formulário.</p>
+                            </>
+                        ) : (
+                            <div className="p-3 bg-green-100 border border-green-400 text-green-700 rounded-lg text-center">
+                                <p className="font-semibold">Todas as propostas da planilha já foram cadastradas.</p>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
