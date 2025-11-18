@@ -1,7 +1,7 @@
 
 
 import React, { useState } from 'react';
-import { Proposal } from '../../../types';
+import { Proposal, ProposalResult, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
 import EditProposalModal from '../../modals/EditProposalModal';
 
@@ -139,6 +139,21 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
           console.error("PDF Export Error:", error);
       }
     };
+    
+    const getResultClass = (result: ProposalResult | null | undefined) => {
+        switch (result) {
+            case ProposalResult.APROVADA:
+                return 'bg-green-100 text-green-800';
+            case ProposalResult.REJEITADA:
+                return 'bg-red-100 text-red-800';
+            case ProposalResult.EMPATE:
+                return 'bg-gray-100 text-gray-800';
+            case ProposalResult.ABSTENCAO_MAJORITARIA:
+                return 'bg-yellow-100 text-yellow-800';
+            default:
+                return 'bg-gray-100 text-gray-500';
+        }
+    };
 
     return (
         <div>
@@ -189,7 +204,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
             <div className="space-y-3 max-h-96 overflow-y-auto printable-section">
                 {filteredProposals.length > 0 ? filteredProposals.map(proposta => (
                     <div key={proposta.id} className="bg-white border border-gray-200 rounded-lg p-4 printable-proposal">
-                        <div className="flex justify-between items-start mb-2">
+                        <div className="flex justify-between items-start">
                             <div className="flex-1">
                                 <h5 className="font-semibold text-gray-800 mb-1">{proposta.titulo}</h5>
                                 <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2 flex-wrap gap-1">
@@ -205,6 +220,34 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                                 <button onClick={() => handleDelete(proposta)} className="text-red-500 hover:text-red-700 text-sm font-medium">🗑️ Excluir</button>
                             </div>
                         </div>
+                        {proposta.status === ProposalStatus.VOTADA && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                                <div className="flex justify-between items-center mb-2">
+                                    <h6 className="text-xs font-semibold text-gray-500 uppercase">Resultado da Votação</h6>
+                                    <div className={`text-xs font-bold p-1 px-2 rounded ${getResultClass(proposta.resultado_final)}`}>
+                                        {proposta.resultado_final || 'N/A'}
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                                    <div className="bg-blue-50 p-2 rounded">
+                                        <div className="font-bold text-blue-800 text-base">{proposta.total_votos ?? 0}</div>
+                                        <div className="text-blue-600">Total</div>
+                                    </div>
+                                    <div className="bg-green-50 p-2 rounded">
+                                        <div className="font-bold text-green-800 text-base">{proposta.votos_sim ?? 0}</div>
+                                        <div className="text-green-600">Sim</div>
+                                    </div>
+                                    <div className="bg-red-50 p-2 rounded">
+                                        <div className="font-bold text-red-800 text-base">{proposta.votos_nao ?? 0}</div>
+                                        <div className="text-red-600">Não</div>
+                                    </div>
+                                    <div className="bg-yellow-50 p-2 rounded">
+                                        <div className="font-bold text-yellow-800 text-base">{proposta.votos_abstencao ?? 0}</div>
+                                        <div className="text-yellow-600">Abstenção</div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )) : (
                      <div className="text-center text-gray-500 py-8">
