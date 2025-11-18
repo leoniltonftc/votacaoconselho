@@ -12,6 +12,7 @@ export interface Vote {
 
 export enum ProposalStatus {
     PENDENTE = 'PENDENTE',
+    EM_VOTACAO = 'EM VOTAÇÃO',
     VOTADA = 'VOTADA'
 }
 

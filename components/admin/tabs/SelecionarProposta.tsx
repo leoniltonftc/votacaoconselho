@@ -20,6 +20,10 @@ interface SelecionarPropostaProps {
 const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, currentProposalId, onSelectProposal, showAdminMessage, onResetProposalVote }) => {
 
     const sortedProposals = [...proposals].sort((a, b) => {
+        // Propostas EM_VOTACAO primeiro
+        if (a.status === ProposalStatus.EM_VOTACAO && b.status !== ProposalStatus.EM_VOTACAO) return -1;
+        if (a.status !== ProposalStatus.EM_VOTACAO && b.status === ProposalStatus.EM_VOTACAO) return 1;
+        
         const eixoCompare = String(a.categoria || '').localeCompare(String(b.categoria || ''));
         if (eixoCompare !== 0) return eixoCompare;
         return String(a.titulo || '').localeCompare(String(b.titulo || ''));
@@ -42,7 +46,7 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
     const handleReset = (proposal: Proposal) => {
         if (window.confirm(`Tem certeza que deseja ZERAR os votos da proposta "${proposal.titulo}"? Isso permitirá que ela seja selecionada novamente.`)) {
             onResetProposalVote(proposal.id);
-            showAdminMessage('success', `Votação da proposta "${proposal.titulo}" zerada com sucesso.`);
+            showAdminMessage('success', `Votação da proposta "${proposal.titulo}" zerada com sucesso. Status alterado para Pendente.`);
         }
     };
 
@@ -159,15 +163,17 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
                     const simPct = calculatePercentage(proposta.votos_sim, proposta.total_votos);
                     const naoPct = calculatePercentage(proposta.votos_nao, proposta.total_votos);
                     const abstPct = calculatePercentage(proposta.votos_abstencao, proposta.total_votos);
-                    const isSelected = currentProposalId === proposta.id;
+                    
+                    // Verifica se é a proposta selecionada ou se está marcada como EM_VOTACAO
+                    const isSelected = currentProposalId === proposta.id || proposta.status === ProposalStatus.EM_VOTACAO;
                     
                     return (
                     <div key={proposta.id} className={`bg-white border rounded-lg p-4 printable-proposal transition-all ${isSelected ? 'border-2 border-blue-600 bg-blue-50 shadow-lg transform scale-[1.01]' : 'border-gray-200'}`}>
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                             <div className="flex-1 w-full">
-                                <h5 className="font-semibold text-gray-800">
+                                <h5 className="font-semibold text-gray-800 flex items-center gap-2">
                                     {String(proposta.titulo || '')} 
-                                    {isSelected && <span className="ml-2 text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full animate-pulse">Em Votação</span>}
+                                    {proposta.status === ProposalStatus.EM_VOTACAO && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full animate-pulse">Em Votação</span>}
                                 </h5>
                                 <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
                                 <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
@@ -212,7 +218,7 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
                             </div>
                             
                             <div className="flex flex-row lg:flex-col gap-2 no-print min-w-[140px] w-full lg:w-auto">
-                                {isSelected ? (
+                                {proposta.status === ProposalStatus.EM_VOTACAO ? (
                                     <button disabled className="w-full lg:w-auto bg-blue-600 text-white px-4 py-3 rounded-lg text-sm font-bold cursor-default shadow-md flex items-center justify-center gap-2 opacity-100">
                                         <span className="animate-pulse">📢</span> Em Votação
                                     </button>
@@ -222,7 +228,7 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
                                             ✔️ Votada
                                         </button>
                                         <button onClick={() => handleReset(proposta)} className="flex-1 lg:flex-none bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm text-center">
-                                            🔄 Zerar
+                                            🔄 Zerar & Retornar
                                         </button>
                                     </>
                                 ) : (

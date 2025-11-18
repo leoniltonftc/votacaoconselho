@@ -1,5 +1,4 @@
 
-
 import React, { useState, useMemo } from 'react';
 import { Proposal, ProposalResult, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
@@ -194,6 +193,17 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
         }
     };
 
+    const getStatusBadgeClass = (status: ProposalStatus | undefined) => {
+        switch (status) {
+            case ProposalStatus.VOTADA:
+                return 'bg-green-100 text-green-800';
+            case ProposalStatus.EM_VOTACAO:
+                return 'bg-blue-100 text-blue-800 animate-pulse';
+            default:
+                return 'bg-yellow-100 text-yellow-800';
+        }
+    };
+
     return (
         <div className="printable-section">
             <div className="mb-4">
@@ -227,7 +237,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Município:</label>
                         <select value={filtroMunicipio} onChange={e => setFiltroMunicipio(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                            <option value="">Todos</option>
+                            <option value="">Todas</option>
                             {municipios.map(m => <option key={m} value={m}>{m}</option>)}
                         </select>
                     </div>
@@ -245,10 +255,10 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
             
             <div className="space-y-3 max-h-96 overflow-y-auto">
                  {filteredProposals.length > 0 ? filteredProposals.map(proposta => (
-                    <div key={proposta.id} className="bg-white border border-gray-200 rounded-lg p-4 printable-proposal">
+                    <div key={proposta.id} className={`bg-white border rounded-lg p-4 printable-proposal ${proposta.status === ProposalStatus.EM_VOTACAO ? 'border-blue-300 shadow-md bg-blue-50' : 'border-gray-200'}`}>
                         <div className="flex flex-col sm:flex-row sm:justify-between">
                              <div className="flex-1 mb-3 sm:mb-0">
-                                <span className={`text-xs font-bold p-1 px-2 rounded-full ${proposta.status === ProposalStatus.VOTADA ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                <span className={`text-xs font-bold p-1 px-2 rounded-full ${getStatusBadgeClass(proposta.status)}`}>
                                     {String(proposta.status || ProposalStatus.PENDENTE)}
                                 </span>
                                 <h5 className="font-semibold text-gray-800 mt-2">{String(proposta.titulo || '')}</h5>

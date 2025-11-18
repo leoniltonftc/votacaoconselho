@@ -434,6 +434,15 @@ const App: React.FC = () => {
     };
 
     const handleStartVoting = async () => {
+        // Atualiza o status da proposta atual para EM_VOTACAO
+        if (currentProposal) {
+            const updatedProposal: Proposal = {
+                ...currentProposal,
+                status: ProposalStatus.EM_VOTACAO
+            };
+            await dataSdk.update(updatedProposal);
+        }
+
         await dataSdk.create({
             id: `control_${Date.now()}`,
             tipo: 'control',
@@ -444,7 +453,7 @@ const App: React.FC = () => {
     };
 
     const handleEndVoting = async () => {
-        await saveVotingResults();
+        await saveVotingResults(); // Isso já define o status como VOTADA
         await dataSdk.create({
             id: `control_${Date.now()}`,
             tipo: 'control',
