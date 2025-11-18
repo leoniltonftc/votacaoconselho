@@ -62,7 +62,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ localUsers, onCreateUse
     };
 
     return (
-        <div className="bg-gray-50 rounded-lg p-4 mb-6 h-full">
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">👤 Cadastrar Usuário Manualmente</h3>
             <form onSubmit={handleAddUser} className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

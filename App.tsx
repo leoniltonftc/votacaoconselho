@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser } from './types';
+import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser, AdminUser } from './types';
 import Header from './components/Header';
 import AuthSection from './components/AuthSection';
 import TimerSection from './components/TimerSection';
@@ -59,6 +59,10 @@ const isValidAppData = (item: any): item is AppData => {
                    typeof item.titulo_column === 'string' &&
                    typeof item.eixo_column === 'string';
         case 'local_user':
+            return typeof item.id === 'string' &&
+                   typeof item.username === 'string' &&
+                   typeof item.password === 'string';
+        case 'admin_user':
             return typeof item.id === 'string' &&
                    typeof item.username === 'string' &&
                    typeof item.password === 'string';
@@ -196,6 +200,7 @@ const App: React.FC = () => {
     const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
     const [proposalSheetsConfig, setProposalSheetsConfig] = useState<ProposalSheetsConfig | null>(null);
     const [localUsers, setLocalUsers] = useState<LocalUser[]>([]);
+    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]); // Estado para usuários administrativos
     const [votingStatus, setVotingStatus] = useState<VotingStatus>(VotingStatus.NOT_STARTED);
     const [votingStartTime, setVotingStartTime] = useState<Date | null>(null);
     const [votingEndTime, setVotingEndTime] = useState<Date | null>(null);
@@ -220,6 +225,9 @@ const App: React.FC = () => {
 
             const allLocalUsers = data.filter(item => item.tipo === 'local_user') as LocalUser[];
             setLocalUsers(allLocalUsers);
+
+            const allAdminUsers = data.filter(item => item.tipo === 'admin_user') as AdminUser[];
+            setAdminUsers(allAdminUsers);
 
             const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
             if (controlRecords.length > 0) {
@@ -312,7 +320,8 @@ const App: React.FC = () => {
         localStorage.removeItem('voting_user_hash');
     };
 
-    const handleAdminAuthenticate = (password: string) => {
+    const handleAdminAuthenticate = (username: string, password: string) => {
+        // 1. Verifica a senha padrão (Master Password)
         if (password === ADMIN_PASSWORD) {
             setIsAdminAuthenticated(true);
             localStorage.setItem('admin_authenticated', 'true');
@@ -320,6 +329,19 @@ const App: React.FC = () => {
             setIsAdminModalOpen(false);
             return true;
         }
+
+        // 2. Verifica usuários administrativos cadastrados
+        if (username) {
+            const adminUser = adminUsers.find(u => u.username === username && u.password === password);
+            if (adminUser) {
+                setIsAdminAuthenticated(true);
+                localStorage.setItem('admin_authenticated', 'true');
+                localStorage.setItem('admin_auth_timestamp', Date.now().toString());
+                setIsAdminModalOpen(false);
+                return true;
+            }
+        }
+
         return false;
     };
     
@@ -523,6 +545,7 @@ const App: React.FC = () => {
                     votes={votes}
                     proposals={proposals}
                     localUsers={localUsers}
+                    adminUsers={adminUsers}
                     votingStatus={votingStatus}
                     sheetsConfig={sheetsConfig}
                     proposalSheetsConfig={proposalSheetsConfig}
@@ -539,6 +562,8 @@ const App: React.FC = () => {
                     onResetProposalVote={handleResetProposalVote}
                     onCreateUser={(user) => dataSdk.create(user)}
                     onDeleteUser={(user) => dataSdk.delete(user)}
+                    onCreateAdminUser={(admin) => dataSdk.create(admin)}
+                    onDeleteAdminUser={(admin) => dataSdk.delete(admin)}
                   />
                 )}
 

@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { SheetsConfig } from '../../types';
 
@@ -78,7 +77,7 @@ const SheetsAuthConfig: React.FC<SheetsAuthConfigProps> = ({ sheetsConfig, onSav
 
 
     return (
-        <div className="bg-gray-50 rounded-lg p-4 mb-6">
+        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
             <h3 className="text-lg font-semibold text-gray-800 mb-4">🔗 Configurar Autenticação Google Sheets</h3>
             <div className="space-y-4">
                 <div>

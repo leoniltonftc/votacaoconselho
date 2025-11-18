@@ -1,16 +1,17 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser } from '../types';
+import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser, AdminUser } from '../types';
 import ProposalManagement from './admin/ProposalManagement';
 import VotingControl from './admin/VotingControl';
 import SheetsAuthConfig from './admin/SheetsAuthConfig';
 import UserManagement from './admin/UserManagement';
+import AdminUserManagement from './admin/AdminUserManagement';
 
 interface AdminPanelProps {
     votes: Vote[];
     proposals: Proposal[];
     localUsers: LocalUser[];
+    adminUsers: AdminUser[];
     votingStatus: VotingStatus;
     sheetsConfig: SheetsConfig | null;
     proposalSheetsConfig: ProposalSheetsConfig | null;
@@ -27,6 +28,8 @@ interface AdminPanelProps {
     onResetProposalVote: (proposalId: string) => void;
     onCreateUser: (user: LocalUser) => void;
     onDeleteUser: (user: LocalUser) => void;
+    onCreateAdminUser: (user: AdminUser) => void;
+    onDeleteAdminUser: (user: AdminUser) => void;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = (props) => {
@@ -54,17 +57,30 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
             />
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <SheetsAuthConfig
-                    sheetsConfig={props.sheetsConfig}
-                    onSaveSheetsConfig={props.onSaveSheetsConfig}
-                    showAdminMessage={showAdminMessage}
-                />
-                <UserManagement 
-                    localUsers={props.localUsers}
-                    onCreateUser={props.onCreateUser}
-                    onDeleteUser={props.onDeleteUser}
-                    showAdminMessage={showAdminMessage}
-                />
+                {/* Coluna da Esquerda: Configurações do Sistema e Admins */}
+                <div className="space-y-6">
+                    <SheetsAuthConfig
+                        sheetsConfig={props.sheetsConfig}
+                        onSaveSheetsConfig={props.onSaveSheetsConfig}
+                        showAdminMessage={showAdminMessage}
+                    />
+                    <AdminUserManagement 
+                        adminUsers={props.adminUsers}
+                        onCreateAdminUser={props.onCreateAdminUser}
+                        onDeleteAdminUser={props.onDeleteAdminUser}
+                        showAdminMessage={showAdminMessage}
+                    />
+                </div>
+
+                {/* Coluna da Direita: Gerenciamento de Eleitores (Lista longa) */}
+                <div>
+                    <UserManagement 
+                        localUsers={props.localUsers}
+                        onCreateUser={props.onCreateUser}
+                        onDeleteUser={props.onDeleteUser}
+                        showAdminMessage={showAdminMessage}
+                    />
+                </div>
             </div>
             
             <ProposalManagement

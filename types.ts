@@ -109,4 +109,12 @@ export interface LocalUser {
     timestamp: string;
 }
 
-export type AppData = Vote | Proposal | ControlRecord | CurrentProposalRecord | SheetsConfig | ProposalSheetsConfig | LocalUser;
+export interface AdminUser {
+    id: string;
+    tipo: 'admin_user';
+    username: string;
+    password: string;
+    timestamp: string;
+}
+
+export type AppData = Vote | Proposal | ControlRecord | CurrentProposalRecord | SheetsConfig | ProposalSheetsConfig | LocalUser | AdminUser;

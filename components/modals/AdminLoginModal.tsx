@@ -1,12 +1,14 @@
 
+
 import React, { useState } from 'react';
 
 interface AdminLoginModalProps {
     onClose: () => void;
-    onAuthenticate: (password: string) => boolean;
+    onAuthenticate: (username: string, password: string) => boolean;
 }
 
 const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose, onAuthenticate }) => {
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -19,9 +21,10 @@ const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose, onAuthentica
         // Simulate network delay
         await new Promise(resolve => setTimeout(resolve, 500));
 
-        const success = onAuthenticate(password);
+        // Passa tanto o usuário quanto a senha
+        const success = onAuthenticate(username, password);
         if (!success) {
-            setError("Senha inválida. Verifique sua senha e tente novamente.");
+            setError("Credenciais inválidas. Verifique e tente novamente.");
         }
 
         setIsLoading(false);
@@ -37,13 +40,25 @@ const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose, onAuthentica
                     </button>
                 </div>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                     <div>
+                        <label htmlFor="admin-username" className="block text-sm font-medium text-gray-700 mb-2">Usuário (Opcional):</label>
+                        <input
+                            type="text"
+                            id="admin-username"
+                            className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
+                            placeholder="Deixe em branco para senha padrão"
+                            value={username}
+                            onChange={(e) => setUsername(e.target.value)}
+                            disabled={isLoading}
+                        />
+                    </div>
                     <div>
                         <label htmlFor="admin-panel-password" className="block text-sm font-medium text-gray-700 mb-2">Senha Administrativa:</label>
                         <input
                             type="password"
                             id="admin-panel-password"
                             className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-500"
-                            placeholder="Digite a senha administrativa"
+                            placeholder="Digite a senha"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
@@ -57,7 +72,7 @@ const AdminLoginModal: React.FC<AdminLoginModalProps> = ({ onClose, onAuthentica
                     {error && (
                         <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-center">
                             <span className="text-xl">❌</span>
-                            <p className="font-semibold">Senha inválida</p>
+                            <p className="font-semibold">Acesso Negado</p>
                             <p className="text-sm">{error}</p>
                         </div>
                     )}
