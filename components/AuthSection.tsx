@@ -72,14 +72,15 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig 
         if (!sheetsConfig) throw new Error("Google Sheets não configurado.");
 
         const csvText = await fetchGoogleSheetsData(sheetsConfig);
-        // Melhorado para lidar com diferentes finais de linha (Windows/Unix)
         const lines = csvText.trim().split(/\r?\n/);
+        
+        // Pula a linha de cabeçalho para evitar comparar a senha com o título da coluna.
+        const dataLines = lines.slice(1);
         
         const usernameColIndex = sheetsConfig.username_column.toUpperCase().charCodeAt(0) - 65;
         const passwordColIndex = sheetsConfig.password_column.toUpperCase().charCodeAt(0) - 65;
 
-        for (const line of lines) {
-            // Trocado split(',') por uma função de análise de CSV mais robusta.
+        for (const line of dataLines) {
             const values = parseCsvLine(line);
             const sheetPassword = values[passwordColIndex];
             if (sheetPassword === pass) {
@@ -101,7 +102,8 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig 
         }
 
         try {
-            const authResult = await authenticateWithGoogleSheets(password);
+            // Remove espaços em branco acidentais da senha digitada pelo usuário.
+            const authResult = await authenticateWithGoogleSheets(password.trim());
             if (authResult.success) {
                 onAuthenticate(authResult.auxiliaryData!);
             } else {
