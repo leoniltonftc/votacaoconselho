@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { Proposal, CurrentProposalRecord, ProposalStatus, ProposalResult } from '../../../types';
 
@@ -132,8 +133,8 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
     };
 
     const calculatePercentage = (value: number | undefined, total: number | undefined) => {
-        if (!value || !total || total === 0) return '0%';
-        return `${Math.round((value / total) * 100)}%`;
+        if (!value || !total || total === 0) return 0;
+        return Math.round((value / total) * 100);
     };
 
 
@@ -154,57 +155,74 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
             </div>
 
             <div className="space-y-3 max-h-80 overflow-y-auto">
-                 {sortedProposals.length > 0 ? sortedProposals.map(proposta => (
+                 {sortedProposals.length > 0 ? sortedProposals.map(proposta => {
+                    const simPct = calculatePercentage(proposta.votos_sim, proposta.total_votos);
+                    const naoPct = calculatePercentage(proposta.votos_nao, proposta.total_votos);
+                    const abstPct = calculatePercentage(proposta.votos_abstencao, proposta.total_votos);
+                    
+                    return (
                     <div key={proposta.id} className="bg-white border border-gray-200 rounded-lg p-4 printable-proposal">
-                        <div className="flex justify-between items-center">
-                            <div className="flex-1">
+                        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                            <div className="flex-1 w-full">
                                 <h5 className="font-semibold text-gray-800">{String(proposta.titulo || '')}</h5>
                                 <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
                                 <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
                                 {proposta.status === ProposalStatus.VOTADA && (
-                                    <div className="mt-3 pt-2 border-t border-gray-100 text-xs">
+                                    <div className="mt-3 pt-2 border-t border-gray-100 text-xs w-full">
                                         <div className="flex flex-wrap items-center gap-2 mb-2">
                                             <span className={`font-bold p-1 px-2 rounded-full ${getResultClass(proposta.resultado_final)}`}>
                                                 {String(proposta.resultado_final || 'N/A')}
                                             </span>
                                             <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded">
-                                                Total de Votos: {proposta.total_votos ?? 0}
+                                                Total: {proposta.total_votos ?? 0}
                                             </span>
                                         </div>
-                                        <div className="flex flex-wrap gap-3 text-gray-600">
-                                            <span className="flex items-center">
-                                                <span className="w-2 h-2 rounded-full bg-green-500 mr-1"></span>
-                                                <strong>Sim:</strong> {proposta.votos_sim ?? 0} ({calculatePercentage(proposta.votos_sim, proposta.total_votos)})
-                                            </span>
-                                            <span className="flex items-center">
-                                                <span className="w-2 h-2 rounded-full bg-red-500 mr-1"></span>
-                                                <strong>Não:</strong> {proposta.votos_nao ?? 0} ({calculatePercentage(proposta.votos_nao, proposta.total_votos)})
-                                            </span>
-                                            <span className="flex items-center">
-                                                <span className="w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
-                                                <strong>Abst:</strong> {proposta.votos_abstencao ?? 0} ({calculatePercentage(proposta.votos_abstencao, proposta.total_votos)})
-                                            </span>
+                                        <div className="space-y-1">
+                                            {/* Barra SIM */}
+                                            <div className="flex items-center w-full">
+                                                <div className="w-16 font-bold text-green-700">SIM</div>
+                                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden mx-2">
+                                                    <div className="h-full bg-green-500" style={{ width: `${simPct}%` }}></div>
+                                                </div>
+                                                <div className="w-20 text-right text-gray-600">{proposta.votos_sim ?? 0} ({simPct}%)</div>
+                                            </div>
+                                            {/* Barra NÃO */}
+                                            <div className="flex items-center w-full">
+                                                <div className="w-16 font-bold text-red-700">NÃO</div>
+                                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden mx-2">
+                                                    <div className="h-full bg-red-500" style={{ width: `${naoPct}%` }}></div>
+                                                </div>
+                                                <div className="w-20 text-right text-gray-600">{proposta.votos_nao ?? 0} ({naoPct}%)</div>
+                                            </div>
+                                            {/* Barra ABST */}
+                                            <div className="flex items-center w-full">
+                                                <div className="w-16 font-bold text-yellow-700">ABST.</div>
+                                                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden mx-2">
+                                                    <div className="h-full bg-yellow-500" style={{ width: `${abstPct}%` }}></div>
+                                                </div>
+                                                <div className="w-20 text-right text-gray-600">{proposta.votos_abstencao ?? 0} ({abstPct}%)</div>
+                                            </div>
                                         </div>
                                     </div>
                                 )}
                             </div>
                             {proposta.status === ProposalStatus.VOTADA ? (
-                                <div className="flex flex-col gap-2 ml-4 no-print min-w-[120px]">
-                                    <button disabled className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed w-full opacity-70">
+                                <div className="flex flex-row lg:flex-col gap-2 no-print min-w-[120px] w-full lg:w-auto">
+                                    <button disabled className="flex-1 lg:flex-none bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed opacity-70 text-center">
                                         ✔️ Votada
                                     </button>
-                                    <button onClick={() => handleReset(proposta)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium w-full transition-colors shadow-sm">
+                                    <button onClick={() => handleReset(proposta)} className="flex-1 lg:flex-none bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm text-center">
                                         🔄 Zerar
                                     </button>
                                 </div>
                             ) : (
-                                <button onClick={() => handleSelect(proposta)} className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium no-print min-w-[120px] shadow-md transition-transform transform hover:scale-105">
+                                <button onClick={() => handleSelect(proposta)} className="w-full lg:w-auto ml-0 lg:ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium no-print min-w-[120px] shadow-md transition-transform transform hover:scale-105">
                                     🎯 Selecionar
                                 </button>
                             )}
                         </div>
                     </div>
-                 )) : (
+                 )}) : (
                      <div className="text-center text-gray-500 py-8">
                          <span className="text-2xl">🎯</span>
                          <p>Nenhuma proposta disponível para seleção.</p>

@@ -68,91 +68,110 @@ const isValidAppData = (item: any): item is AppData => {
 };
 
 
-// Mock dataSdk
+// Mock dataSdk com melhorias de sincronização (Read-Modify-Write)
 const dataSdk = {
-  _data: [] as AppData[],
   _onDataChanged: (data: AppData[]) => {},
+  
   init: async function(handler: { onDataChanged: (data: AppData[]) => void }) {
     this._onDataChanged = handler.onDataChanged;
-    this._loadData();
-    // Simulate real-time updates
+    this._loadAndNotify(); // Carrega inicial
+    
+    // Escuta mudanças em outras abas/janelas
     window.addEventListener('storage', (e) => {
       if (e.key === 'voting_app_data') {
-        this._loadData();
+        this._loadAndNotify();
       }
     });
     return { isOk: true };
   },
-  _loadData: function() {
+
+  // Lê do localStorage, valida e notifica a aplicação
+  _loadAndNotify: function() {
     try {
         const data = localStorage.getItem('voting_app_data');
         if (!data) {
-            this._data = [];
             this._onDataChanged([]);
             return;
         }
         
         const parsedData = JSON.parse(data);
-
-        if (!Array.isArray(parsedData)) {
-            throw new Error("Stored data is not an array.");
-        }
+        if (!Array.isArray(parsedData)) throw new Error("Dados inválidos");
         
         const cleanData = parsedData.filter(isValidAppData);
-        
-        if(cleanData.length < parsedData.length) {
-             console.warn(`Data Corruption Detected: ${parsedData.length - cleanData.length} invalid items were found and removed from stored data.`);
-        }
-        
-        this._data = cleanData;
-        this._onDataChanged(this._data);
+        this._onDataChanged(cleanData);
+    } catch (e) {
+        console.error("Erro ao carregar dados:", e);
+        // Não limpa automaticamente para evitar perda de dados em condições de corrida, 
+        // a menos que seja crítico.
+    }
+  },
 
-    } catch (e) {
-        console.error("CRITICAL: Failed to load or parse data, resetting state to prevent crash.", e);
-        localStorage.removeItem('voting_app_data');
-        this._data = [];
-        this._onDataChanged([]);
-    }
+  // Helper para ler dados frescos antes de escrever
+  _readData: function(): AppData[] {
+      try {
+          const data = localStorage.getItem('voting_app_data');
+          if (!data) return [];
+          const parsed = JSON.parse(data);
+          return Array.isArray(parsed) ? parsed.filter(isValidAppData) : [];
+      } catch {
+          return [];
+      }
   },
-  _saveData: function() {
+
+  _saveData: function(data: AppData[]) {
     try {
-      localStorage.setItem('voting_app_data', JSON.stringify(this._data));
-      // Dispatch a storage event to notify other tabs/windows
-      window.dispatchEvent(new StorageEvent('storage', { key: 'voting_app_data' }));
+      localStorage.setItem('voting_app_data', JSON.stringify(data));
+      // Dispara evento para notificar a própria aba se necessário, mas o storage event 
+      // nativo só funciona para OUTRAS abas. Então chamamos notify manualmente.
+      this._onDataChanged(data); 
+      // Dispara evento customizado para forçar atualização se necessário
+      window.dispatchEvent(new Event('local-storage-update'));
     } catch (e) {
-      console.error("Failed to save data to localStorage", e);
+      console.error("Falha ao salvar dados", e);
     }
   },
+
   create: async function(item: AppData) {
-    this._data.push(item);
-    this._saveData();
-    this._onDataChanged(this._data);
+    const currentData = this._readData();
+    currentData.push(item);
+    this._saveData(currentData);
     return { isOk: true };
   },
+
   update: async function(item: AppData) {
-    const index = this._data.findIndex(d => d.id === item.id);
+    const currentData = this._readData();
+    const index = currentData.findIndex(d => d.id === item.id);
     if (index !== -1) {
-      this._data[index] = item;
-      this._saveData();
-      this._onDataChanged(this._data);
+      currentData[index] = item;
+      this._saveData(currentData);
       return { isOk: true };
     }
     return { isOk: false, error: 'Item not found' };
   },
+
   delete: async function(item: AppData) {
-    this._data = this._data.filter(d => d.id !== item.id);
-    this._saveData();
-    this._onDataChanged(this._data);
+    const currentData = this._readData();
+    const newData = currentData.filter(d => d.id !== item.id);
+    this._saveData(newData);
     return { isOk: true };
   },
+
+  deleteMany: async function(idsToDelete: string[]) {
+    const currentData = this._readData();
+    const newData = currentData.filter(d => !idsToDelete.includes(d.id));
+    this._saveData(newData);
+    return { isOk: true };
+  },
+
   deleteAll: async function(type?: string) {
+    const currentData = this._readData();
+    let newData;
     if (type) {
-        this._data = this._data.filter(d => d && d.tipo !== type);
+        newData = currentData.filter(d => d.tipo !== type);
     } else {
-        this._data = [];
+        newData = [];
     }
-    this._saveData();
-    this._onDataChanged(this._data);
+    this._saveData(newData);
     return { isOk: true };
   }
 };
@@ -209,7 +228,7 @@ const App: React.FC = () => {
                     setVotingStatus(VotingStatus.NOT_STARTED);
                     setVotingStartTime(null);
                     setVotingEndTime(null);
-                    localStorage.removeItem('voting_user_hash');
+                    // Não removemos o hash aqui para não invalidar a sessão do usuário, apenas o estado da votação
                 } else {
                     setVotingStatus((latestControl.status as VotingStatus) || VotingStatus.NOT_STARTED);
                     setVotingStartTime(latestControl.start_time ? new Date(latestControl.start_time) : null);
@@ -247,8 +266,8 @@ const App: React.FC = () => {
                 setProposalSheetsConfig(latestConfig);
             }
         } catch (error) {
-            console.error("A critical error occurred while processing data. Resetting data to prevent a crash.", error);
-            dataSdk.deleteAll();
+            console.error("A critical error occurred while processing data.", error);
+            // Evitamos limpar tudo automaticamente em caso de erro de processamento para não perder dados por bugs de UI
         }
     }, []);
 
@@ -311,7 +330,6 @@ const App: React.FC = () => {
     }
 
     const handleVote = async (voteOption: 'SIM' | 'NÃO' | 'ABSTENÇÃO') => {
-        // Verificação de segurança adicional para garantir que a proposta atual existe
         if (!isUserAuthenticated || !authenticatedUserCode || hasVoted || votingStatus !== VotingStatus.STARTED || !currentProposal) return;
 
         const userHash = localStorage.getItem('voting_user_hash') || `user_${Math.random().toString(36).substr(2, 9)}`;
@@ -332,7 +350,6 @@ const App: React.FC = () => {
     const saveVotingResults = async () => {
         if (!currentProposal) return;
         
-        // Filtra os votos apenas da proposta atual
         const currentProposalVotes = votes.filter(v => v.proposta_id === currentProposal.id);
 
         const simVotes = currentProposalVotes.filter(v => v.voto === 'SIM').length;
@@ -362,7 +379,6 @@ const App: React.FC = () => {
         await dataSdk.update(updatedProposal);
     };
     
-    // Nova função para zerar a votação de uma proposta específica
     const handleResetProposalVote = async (proposalId: string) => {
         try {
             // 1. Encontrar a proposta
@@ -370,24 +386,24 @@ const App: React.FC = () => {
             if (!proposal) return;
 
             // 2. Remover todos os votos associados a esta proposta
-            // Como o dataSdk.deleteAll remove por tipo, precisamos de uma lógica para remover itens específicos
-            // Como o mock dataSdk não tem deleteByCondition, vamos iterar e deletar um a um
             const proposalVotes = votes.filter(v => v.proposta_id === proposalId);
-            for (const vote of proposalVotes) {
-                await dataSdk.delete(vote);
+            const idsToDelete = proposalVotes.map(v => v.id);
+            
+            if (idsToDelete.length > 0) {
+                await dataSdk.deleteMany(idsToDelete);
             }
 
             // 3. Atualizar o status da proposta para PENDENTE e limpar resultados
             const resetProposal: Proposal = {
                 ...proposal,
                 status: ProposalStatus.PENDENTE,
-                votos_sim: undefined,
-                votos_nao: undefined,
-                votos_abstencao: undefined,
-                total_votos: undefined,
+                votos_sim: 0,
+                votos_nao: 0,
+                votos_abstencao: 0,
+                total_votos: 0,
                 resultado_final: undefined,
                 data_votacao: undefined,
-                voting_duration_seconds: undefined
+                voting_duration_seconds: 0
             };
             await dataSdk.update(resetProposal);
 
@@ -419,13 +435,15 @@ const App: React.FC = () => {
     };
 
     const handleNewVoting = async () => {
-        // REMOVIDO: await dataSdk.deleteAll('vote'); // Não deletamos mais todos os votos
+        // NÃO deletamos os votos anteriores. O histórico é mantido.
+        // Apenas criamos um novo registro de controle para resetar o status da UI de votação
         await dataSdk.create({
             id: `control_reset_${Date.now()}`,
             tipo: 'control',
             status: 'reset',
             timestamp: new Date().toISOString()
         } as ControlRecord);
+        
         await dataSdk.create({
             id: `control_new_${Date.now()}`,
             tipo: 'control',

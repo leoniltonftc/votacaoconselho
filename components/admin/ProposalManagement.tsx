@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Proposal, Vote, CurrentProposalRecord, ProposalSheetsConfig } from '../../types';
 import CadastrarProposta from './tabs/CadastrarProposta';
@@ -30,7 +31,13 @@ const ProposalManagement: React.FC<ProposalManagementProps> = (props) => {
             case 'cadastrar':
                 return <CadastrarProposta {...props} />;
             case 'listar':
-                return <ListarPropostas {...props} />;
+                return <ListarPropostas 
+                    proposals={props.proposals}
+                    onUpdateProposal={props.onUpdateProposal}
+                    onDeleteProposal={props.onDeleteProposal}
+                    showAdminMessage={props.showAdminMessage}
+                    onResetProposalVote={props.onResetProposalVote}
+                />;
             case 'selecionar':
                 return <SelecionarProposta 
                     proposals={props.proposals}

@@ -18,9 +18,10 @@ interface ListarPropostasProps {
     onUpdateProposal: (proposal: Proposal) => void;
     onDeleteProposal: (proposal: Proposal) => void;
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
+    onResetProposalVote: (proposalId: string) => void;
 }
 
-const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdateProposal, onDeleteProposal, showAdminMessage }) => {
+const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdateProposal, onDeleteProposal, showAdminMessage, onResetProposalVote }) => {
     const [filtroCategoria, setFiltroCategoria] = useState('');
     const [filtroAbrangencia, setFiltroAbrangencia] = useState('');
     const [filtroRegional, setFiltroRegional] = useState('');
@@ -91,6 +92,13 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
         setEditingProposal(null);
         showAdminMessage('success', 'Proposta atualizada com sucesso.');
     };
+    
+    const handleResetVote = (proposal: Proposal) => {
+        if (window.confirm(`ATENÇÃO: Tem certeza que deseja ZERAR os votos da proposta "${proposal.titulo}"? Esta ação não pode ser desfeita.`)) {
+            onResetProposalVote(proposal.id);
+            showAdminMessage('success', 'Votação da proposta zerada com sucesso.');
+        }
+    }
 
     const handlePrint = () => {
       const adminPanel = document.querySelector('.admin-panel-section');
@@ -251,6 +259,9 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                             <div className="no-print flex-shrink-0 flex sm:flex-col sm:space-y-2 sm:items-end space-x-2 sm:space-x-0">
                                 <button onClick={() => setEditingProposal(proposta)} className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg">✏️ Editar</button>
                                 <button onClick={() => handleDelete(proposta)} className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg">🗑️ Excluir</button>
+                                {proposta.status === ProposalStatus.VOTADA && (
+                                    <button onClick={() => handleResetVote(proposta)} className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-2 rounded-lg">🔄 Zerar Votação</button>
+                                )}
                             </div>
                         </div>
                         {proposta.status === ProposalStatus.VOTADA && (
