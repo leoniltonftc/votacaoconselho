@@ -501,7 +501,7 @@ const App: React.FC = () => {
                   title={DEFAULT_CONFIG.titulo_votacao} 
                   question={DEFAULT_CONFIG.pergunta_votacao}
                   status={votingStatus}
-                  totalVotes={currentProposal ? votes.filter(v => v.proposta_id === currentProposal.id).length : 0}
+                  totalVotes={(votingStatus === VotingStatus.STARTED || votingStatus === VotingStatus.CLOSED) && currentProposal ? votes.filter(v => v.proposta_id === currentProposal.id).length : 0}
                 />
 
                 {!isUserAuthenticated ? (

@@ -141,22 +141,18 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         }
     };
 
-    // Lógica para filtrar os votos e garantir que o display mostre os dados corretos
+    // Lógica CRÍTICA para corrigir o display:
+    // Só retorna votos se o status for explicitamente STARTED ou CLOSED.
+    // Se for NOT_STARTED (após clicar em Nova Votação), retorna [] vazio.
     const getFilteredVotesForDisplay = () => {
-        // Se o status for NOT_STARTED (que ocorre ao clicar em Nova Votação) ou NEW_VOTING_CREATED,
-        // retornamos uma lista vazia para zerar visualmente os contadores.
-        if (props.votingStatus === VotingStatus.NOT_STARTED || 
-            props.votingStatus === VotingStatus.NEW_VOTING_CREATED) {
+        if (props.votingStatus !== VotingStatus.STARTED && props.votingStatus !== VotingStatus.CLOSED) {
             return [];
         }
         
-        // Se não houver uma proposta selecionada explicitamente, também não mostramos votos para evitar
-        // exibir totais globais ou de propostas antigas no contexto de votação atual.
         if (!props.currentProposalId) {
             return [];
         }
         
-        // Filtra e retorna apenas os votos que pertencem à proposta atualmente em pauta.
         return props.votes.filter(v => v.proposta_id === props.currentProposalId);
     };
 
@@ -177,7 +173,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
 
             <VotingControl
                 votingStatus={props.votingStatus}
-                votes={getFilteredVotesForDisplay()}
+                votes={getFilteredVotesForDisplay()} 
                 onStartVoting={props.onStartVoting}
                 onEndVoting={props.onEndVoting}
                 onNewVoting={props.onNewVoting}
