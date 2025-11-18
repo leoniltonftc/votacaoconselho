@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Proposal } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
@@ -26,14 +27,29 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
     const [filtroMunicipio, setFiltroMunicipio] = useState('');
     const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
 
-    const regionais = [...new Set(proposals.map(p => p.regional_saude).filter(Boolean))].sort();
-    const municipios = [...new Set(proposals.map(p => p.municipio).filter(Boolean))].sort();
+    const regionais = [...new Set(
+        proposals
+            .map(p => p.regional_saude)
+            .filter(Boolean)
+            .flatMap(r => r.split(',').map(item => item.trim()))
+            .filter(Boolean)
+// Fix: Explicitly cast to string for sorting to avoid 'unknown' type error.
+    )].sort((a, b) => String(a).localeCompare(String(b)));
+    
+    const municipios = [...new Set(
+        proposals
+            .map(p => p.municipio)
+            .filter(Boolean)
+            .flatMap(m => m.split(',').map(item => item.trim()))
+            .filter(Boolean)
+// Fix: Explicitly cast to string for sorting to avoid 'unknown' type error.
+    )].sort((a, b) => String(a).localeCompare(String(b)));
 
     const filteredProposals = proposals
         .filter(p => !filtroCategoria || p.categoria === filtroCategoria)
         .filter(p => !filtroAbrangencia || p.abrangencia === filtroAbrangencia)
-        .filter(p => !filtroRegional || p.regional_saude === filtroRegional)
-        .filter(p => !filtroMunicipio || p.municipio === filtroMunicipio)
+        .filter(p => !filtroRegional || (p.regional_saude && p.regional_saude.split(',').map(item => item.trim()).includes(filtroRegional)))
+        .filter(p => !filtroMunicipio || (p.municipio && p.municipio.split(',').map(item => item.trim()).includes(filtroMunicipio)))
         .sort((a, b) => {
             const eixoCompare = a.categoria.localeCompare(b.categoria);
             if (eixoCompare !== 0) return eixoCompare;
