@@ -1,6 +1,7 @@
+
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-// Fix: Import CurrentProposalRecord to correctly type filtered proposal data.
 import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord } from './types';
 import Header from './components/Header';
 import AuthSection from './components/AuthSection';
@@ -12,6 +13,53 @@ import AdminPanel from './components/AdminPanel';
 import AdminLoginModal from './components/modals/AdminLoginModal';
 import { ADMIN_PASSWORD, DEFAULT_CONFIG } from './constants';
 import WelcomeScreen from './components/WelcomeScreen';
+
+const isValidAppData = (item: any): item is AppData => {
+    if (!item || typeof item !== 'object' || !item.tipo || typeof item.tipo !== 'string') {
+        return false;
+    }
+
+    switch (item.tipo) {
+        case 'vote':
+            return typeof item.id === 'string' &&
+                   typeof item.voto === 'string' && ['SIM', 'NÃO', 'ABSTENÇÃO'].includes(item.voto) &&
+                   typeof item.timestamp === 'string' &&
+                   typeof item.user_code === 'string' &&
+                   typeof item.proposta_id === 'string';
+        case 'proposta_cadastrada':
+            return typeof item.id === 'string' &&
+                   typeof item.titulo === 'string' &&
+                   typeof item.categoria === 'string' &&
+                   typeof item.abrangencia === 'string' &&
+                   typeof item.regional_saude === 'string' &&
+                   typeof item.municipio === 'string' &&
+                   typeof item.descricao === 'string' &&
+                   typeof item.data_criacao === 'string';
+        case 'control':
+            return typeof item.id === 'string' && typeof item.status === 'string';
+        case 'proposal':
+            return typeof item.id === 'string' &&
+                   typeof item.proposta_id === 'string' &&
+                   typeof item.titulo === 'string' &&
+                   typeof item.eixo === 'string' &&
+                   typeof item.proposta === 'string';
+        case 'sheets_config':
+            return typeof item.id === 'string' &&
+                   typeof item.google_sheet_url === 'string' &&
+                   typeof item.sheet_name === 'string' &&
+                   typeof item.username_column === 'string' &&
+                   typeof item.password_column === 'string';
+        case 'proposals_sheets_config':
+            return typeof item.id === 'string' &&
+                   typeof item.proposals_sheet_url === 'string' &&
+                   typeof item.proposals_sheet_name === 'string' &&
+                   typeof item.titulo_column === 'string' &&
+                   typeof item.eixo_column === 'string';
+        default:
+            return false;
+    }
+};
+
 
 // Mock dataSdk
 const dataSdk = {
@@ -29,24 +77,35 @@ const dataSdk = {
     return { isOk: true };
   },
   _loadData: function() {
-    let finalData: AppData[] = [];
     try {
         const data = localStorage.getItem('voting_app_data');
-        const parsedData = data ? JSON.parse(data) : [];
-        if (Array.isArray(parsedData)) {
-            // Robustness: Filter out non-object entries to prevent downstream errors.
-            finalData = parsedData.filter(item => item && typeof item === 'object');
-            if (finalData.length !== parsedData.length) {
-                console.warn("Data corruption detected: Removed invalid entries from localStorage.");
-            }
-        } else if (data) { 
-            console.warn("Corrupted data in localStorage was not an array. Resetting state.");
+        if (!data) {
+            this._data = [];
+            this._onDataChanged([]);
+            return;
         }
+        
+        const parsedData = JSON.parse(data);
+
+        if (!Array.isArray(parsedData)) {
+            throw new Error("Stored data is not an array.");
+        }
+        
+        const cleanData = parsedData.filter(isValidAppData);
+        
+        if(cleanData.length < parsedData.length) {
+             console.warn(`Data Corruption Detected: ${parsedData.length - cleanData.length} invalid items were found and removed from stored data.`);
+        }
+        
+        this._data = cleanData;
+        this._onDataChanged(this._data);
+
     } catch (e) {
-        console.error("Failed to parse data from localStorage, resetting state.", e);
+        console.error("CRITICAL: Failed to load or parse data, resetting state to prevent crash.", e);
+        localStorage.removeItem('voting_app_data');
+        this._data = [];
+        this._onDataChanged([]);
     }
-    this._data = finalData;
-    this._onDataChanged(this._data);
   },
   _saveData: function() {
     try {
@@ -91,9 +150,15 @@ const dataSdk = {
   }
 };
 
+const safeGetTime = (timestamp: string | undefined | null): number => {
+    if (!timestamp) return 0;
+    const time = new Date(timestamp).getTime();
+    return isNaN(time) ? 0 : time;
+};
+
 
 const App: React.FC = () => {
-    const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
+    const [showWelcomeScreen, setShowWelcomeScreen] = useState(() => !sessionStorage.getItem('welcomeScreenShown'));
     const [isUserAuthenticated, setIsUserAuthenticated] = useState(false);
     const [authenticatedUserCode, setAuthenticatedUserCode] = useState<string | null>(null);
     const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
@@ -116,68 +181,61 @@ const App: React.FC = () => {
     const hasVoted = authenticatedUserCode ? votes.some(v => v.user_code === authenticatedUserCode) : false;
 
     const onDataChanged = useCallback((data: AppData[]) => {
-      if (!Array.isArray(data)) {
-        console.error("onDataChanged received non-array data. Aborting.", data);
-        return;
-      }
-      try {
-        const allVotes = data.filter(item => item && item.tipo !== 'control' && item.tipo !== 'proposal' && item.tipo !== 'sheets_config' && item.tipo !== 'proposals_sheets_config' && item.tipo !== 'proposta_cadastrada') as Vote[];
-        setVotes(allVotes);
-        
-        const allProposals = data.filter(item => item && item.tipo === 'proposta_cadastrada') as Proposal[];
-        setProposals(allProposals);
+        try {
+            const allVotes = data.filter(item => item.tipo === 'vote') as Vote[];
+            setVotes(allVotes);
+            
+            const allProposals = data.filter(item => item.tipo === 'proposta_cadastrada') as Proposal[];
+            setProposals(allProposals);
 
-        const controlRecords = data.filter(item => item && item.tipo === 'control') as ControlRecord[];
-        if (controlRecords.length > 0) {
-            const latestControl = controlRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
-            if (latestControl.status === 'reset' || latestControl.status === 'new_voting_created') {
-                setVotingStatus(VotingStatus.NOT_STARTED);
-                setVotingStartTime(null);
-                setVotingEndTime(null);
-                localStorage.removeItem('voting_user_hash');
+            const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
+            if (controlRecords.length > 0) {
+                const latestControl = controlRecords.sort((a, b) => safeGetTime(b?.timestamp) - safeGetTime(a?.timestamp))[0];
+                if (latestControl.status === 'reset' || latestControl.status === 'new_voting_created') {
+                    setVotingStatus(VotingStatus.NOT_STARTED);
+                    setVotingStartTime(null);
+                    setVotingEndTime(null);
+                    localStorage.removeItem('voting_user_hash');
+                } else {
+                    setVotingStatus((latestControl.status as VotingStatus) || VotingStatus.NOT_STARTED);
+                    setVotingStartTime(latestControl.start_time ? new Date(latestControl.start_time) : null);
+                    setVotingEndTime(latestControl.end_time ? new Date(latestControl.end_time) : null);
+                }
             } else {
-                setVotingStatus(latestControl.status as VotingStatus);
-                setVotingStartTime(latestControl.start_time ? new Date(latestControl.start_time) : null);
-                setVotingEndTime(latestControl.end_time ? new Date(latestControl.end_time) : null);
+                setVotingStatus(VotingStatus.NOT_STARTED);
             }
-        } else {
-            setVotingStatus(VotingStatus.NOT_STARTED);
-        }
 
-        // Fix: Add type assertion to correctly type `proposalRecords` after filtering.
-        const proposalRecords = data.filter(item => item && item.tipo === 'proposal') as CurrentProposalRecord[];
-        if (proposalRecords.length > 0) {
-            const latestProposal = proposalRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
-            setCurrentProposalText(latestProposal.proposta);
-            setCurrentEixoText(latestProposal.eixo);
-            setCurrentProposalTitle(latestProposal.titulo);
-            const proposal = allProposals.find(p => p.id === latestProposal.proposta_id);
-            setCurrentProposal(proposal || null);
-        } else {
-             setCurrentProposalText(DEFAULT_CONFIG.proposta_texto);
-             setCurrentEixoText(DEFAULT_CONFIG.eixo_texto);
-             setCurrentProposalTitle("Título da proposta");
-             setCurrentProposal(null);
-        }
+            const proposalRecords = data.filter(item => item.tipo === 'proposal') as CurrentProposalRecord[];
+            if (proposalRecords.length > 0) {
+                const latestProposal = proposalRecords.sort((a, b) => safeGetTime(b?.timestamp) - safeGetTime(a?.timestamp))[0];
+                setCurrentProposalText(String(latestProposal.proposta || ''));
+                setCurrentEixoText(String(latestProposal.eixo || ''));
+                setCurrentProposalTitle(String(latestProposal.titulo || ''));
 
-        const sheetsConfigRecords = data.filter(item => item && item.tipo === 'sheets_config') as SheetsConfig[];
-        if (sheetsConfigRecords.length > 0) {
-            const latestConfig = sheetsConfigRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
-            setSheetsConfig(latestConfig);
+                const proposal = allProposals.find(p => p.id === latestProposal.proposta_id);
+                setCurrentProposal(proposal || null);
+            } else {
+                 setCurrentProposalText(DEFAULT_CONFIG.proposta_texto);
+                 setCurrentEixoText(DEFAULT_CONFIG.eixo_texto);
+                 setCurrentProposalTitle("Título da proposta");
+                 setCurrentProposal(null);
+            }
+
+            const sheetsConfigRecords = data.filter(item => item.tipo === 'sheets_config') as SheetsConfig[];
+            if (sheetsConfigRecords.length > 0) {
+                const latestConfig = sheetsConfigRecords.sort((a, b) => safeGetTime(b?.timestamp) - safeGetTime(a?.timestamp))[0];
+                setSheetsConfig(latestConfig);
+            }
+            
+            const proposalSheetsConfigRecords = data.filter(item => item.tipo === 'proposals_sheets_config') as ProposalSheetsConfig[];
+            if (proposalSheetsConfigRecords.length > 0) {
+                const latestConfig = proposalSheetsConfigRecords.sort((a, b) => safeGetTime(b?.timestamp) - safeGetTime(a?.timestamp))[0];
+                setProposalSheetsConfig(latestConfig);
+            }
+        } catch (error) {
+            console.error("A critical error occurred while processing data. Resetting data to prevent a crash.", error);
+            dataSdk.deleteAll();
         }
-        
-        const proposalSheetsConfigRecords = data.filter(item => item && item.tipo === 'proposals_sheets_config') as ProposalSheetsConfig[];
-        if (proposalSheetsConfigRecords.length > 0) {
-            const latestConfig = proposalSheetsConfigRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
-            setProposalSheetsConfig(latestConfig);
-        }
-      } catch (error) {
-          console.error("Critical error processing data. The application state is likely corrupted.", error);
-          console.error("Corrupted data:", data);
-          // Attempt to recover by clearing the corrupted state.
-          dataSdk.deleteAll(); 
-          console.warn("Ocorreu um erro crítico ao carregar os dados da aplicação. O estado foi reiniciado para garantir a estabilidade.");
-      }
     }, []);
 
     useEffect(() => {
@@ -202,6 +260,11 @@ const App: React.FC = () => {
         }
         setIsAuthLoading(false);
     }, [onDataChanged]);
+
+    const handleEnterApp = () => {
+        sessionStorage.setItem('welcomeScreenShown', 'true');
+        setShowWelcomeScreen(false);
+    };
 
     const handleAuthenticate = (code: string) => {
         setIsUserAuthenticated(true);
@@ -319,7 +382,7 @@ const App: React.FC = () => {
     };
     
     if (showWelcomeScreen) {
-        return <WelcomeScreen onEnter={() => setShowWelcomeScreen(false)} />;
+        return <WelcomeScreen onEnter={handleEnterApp} />;
     }
     
     if (isAuthLoading) {

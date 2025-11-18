@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Vote, Proposal } from '../../../types';
 
@@ -22,17 +23,37 @@ const VotosIndividuais: React.FC<VotosIndividuaisProps> = ({ votes, proposals })
         return proposals.find(p => p.id === proposalId);
     };
 
-    const sortedProposals = [...proposals].sort((a, b) => {
-        const eixoCompare = a.categoria.localeCompare(b.categoria);
+    const sortedProposalsForFilter = [...proposals].sort((a, b) => {
+        const eixoCompare = String(a.categoria || '').localeCompare(String(b.categoria || ''));
         if (eixoCompare !== 0) return eixoCompare;
-        return a.titulo.localeCompare(b.titulo);
+        return String(a.titulo || '').localeCompare(String(b.titulo || ''));
     });
 
     const filteredVotes = votes
-        .filter(v => !filtroParticipante || v.user_code.toLowerCase().includes(filtroParticipante.toLowerCase()))
+        .filter(v => !filtroParticipante || (v.user_code || '').toLowerCase().includes(filtroParticipante.toLowerCase()))
         .filter(v => !filtroProposta || v.proposta_id === filtroProposta)
-        .filter(v => !filtroVoto || v.voto === filtroVoto)
-        .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        .filter(v => !filtroVoto || v.voto === filtroVoto);
+
+    // Group votes for display
+    const votesByProposal: { [key: string]: Vote[] } = {};
+    filteredVotes.forEach(vote => {
+        if (!votesByProposal[vote.proposta_id]) {
+            votesByProposal[vote.proposta_id] = [];
+        }
+        votesByProposal[vote.proposta_id].push(vote);
+    });
+
+    const sortedProposalIds = Object.keys(votesByProposal).sort((idA, idB) => {
+        const propA = getProposalDetails(idA);
+        const propB = getProposalDetails(idB);
+        
+        if (!propA || !propB) return 0;
+
+        const eixoCompare = String(propA.categoria || '').localeCompare(String(propB.categoria || ''));
+        if (eixoCompare !== 0) return eixoCompare;
+        
+        return String(propA.titulo || '').localeCompare(String(propB.titulo || ''));
+    });
 
     const handlePrint = () => {
         const adminPanel = document.querySelector('.admin-panel-section');
@@ -56,47 +77,61 @@ const VotosIndividuais: React.FC<VotosIndividuaisProps> = ({ votes, proposals })
 
         try {
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
+            const doc = new jsPDF({ orientation: "landscape" });
 
             if (typeof (doc as any).autoTable !== 'function') {
                 throw new Error("A extensão jsPDF-AutoTable não foi carregada corretamente.");
             }
 
             doc.setFontSize(18);
-            doc.text("Relatório de Votos Individuais", 14, 22);
+            doc.text("Relatório de Votos Individuais Agrupado por Proposta", 14, 22);
             doc.setFontSize(11);
             doc.setTextColor(100);
             doc.text(`Relatório gerado em: ${new Date().toLocaleString()}`, 14, 30);
             doc.text(`Total de votos (filtrado): ${filteredVotes.length}`, 14, 36);
 
-            const tableColumn = ["Participante", "Proposta", "Descrição", "Regional", "Município", "Voto", "Data"];
-            const tableRows: string[][] = [];
+            const tableRows: any[][] = [];
 
-            filteredVotes.forEach(v => {
-                const proposal = getProposalDetails(v.proposta_id);
-                const voteData = [
-                    v.user_code,
-                    proposal?.titulo || 'Proposta Desconhecida',
-                    proposal?.descricao || 'Não disponível',
-                    proposal?.regional_saude || 'Não disponível',
-                    proposal?.municipio || 'Não disponível',
-                    v.voto,
-                    new Date(v.timestamp).toLocaleString(),
-                ];
-                tableRows.push(voteData);
+            sortedProposalIds.forEach(proposalId => {
+                const proposal = getProposalDetails(proposalId);
+                if (!proposal) return;
+
+                // Add a grouping row for the proposal
+                tableRows.push([{
+                    content: `Eixo: ${proposal.categoria} | Proposta: ${proposal.titulo}`,
+                    colSpan: 5,
+                    styles: { fontStyle: 'bold', fillColor: [230, 230, 230], textColor: [50, 50, 50] }
+                }]);
+                
+                // Add header for the group
+                tableRows.push([
+                    { content: 'Participante', styles: { fontStyle: 'bold' } },
+                    { content: 'Regional', styles: { fontStyle: 'bold' } },
+                    { content: 'Município', styles: { fontStyle: 'bold' } },
+                    { content: 'Voto', styles: { fontStyle: 'bold' } },
+                    { content: 'Data', styles: { fontStyle: 'bold' } }
+                ]);
+
+                votesByProposal[proposalId]
+                    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                    .forEach(v => {
+                        const voteData = [
+                            v.user_code,
+                            proposal.regional_saude || 'N/A',
+                            proposal.municipio || 'N/A',
+                            v.voto,
+                            new Date(v.timestamp).toLocaleString(),
+                        ];
+                        tableRows.push(voteData);
+                    });
             });
 
             (doc as any).autoTable({
-                head: [tableColumn],
                 body: tableRows,
                 startY: 50,
+                theme: 'grid',
                 headStyles: { fillColor: [41, 128, 185] },
                 styles: { fontSize: 8, cellPadding: 2 },
-                columnStyles: { 
-                    0: { cellWidth: 25 }, 
-                    1: { cellWidth: 40 }, 
-                    2: { cellWidth: 50 } 
-                }
             });
 
             doc.save("relatorio_votos_individuais.pdf");
@@ -134,7 +169,7 @@ const VotosIndividuais: React.FC<VotosIndividuaisProps> = ({ votes, proposals })
                         <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Proposta:</label>
                         <select value={filtroProposta} onChange={e => setFiltroProposta(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
                             <option value="">Todas as propostas</option>
-                            {sortedProposals.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+                            {sortedProposalsForFilter.map(p => <option key={p.id} value={p.id}>{String(p.titulo || '')}</option>)}
                         </select>
                     </div>
                     <div>
@@ -158,29 +193,34 @@ const VotosIndividuais: React.FC<VotosIndividuaisProps> = ({ votes, proposals })
                 </button>
             </div>
 
-            <div className="space-y-3 max-h-96 overflow-y-auto">
-                {filteredVotes.length > 0 ? filteredVotes.map(vote => {
-                    const proposal = getProposalDetails(vote.proposta_id);
-                    return (
-                        <div key={vote.id} className="bg-white border border-gray-200 rounded-lg p-4 printable-proposal">
-                            <div className="flex flex-wrap justify-between items-center gap-3">
-                               <div className="flex-1 min-w-[150px]">
-                                    <p className="text-sm text-gray-500">Participante:</p>
-                                    <p className="font-semibold font-mono text-gray-800">{vote.user_code}</p>
-                               </div>
-                               <div className="flex-1 min-w-[200px]">
-                                    <p className="text-sm text-gray-500">Proposta:</p>
-                                    <p className="font-semibold text-gray-800">{proposal?.titulo || 'Proposta Desconhecida'}</p>
-                                    <p className="text-xs text-gray-500 mt-1">{proposal?.regional_saude} • {proposal?.municipio}</p>
-                               </div>
-                               <div className="text-center">
-                                    <p className="text-sm text-gray-500">Voto:</p>
-                                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${getVoteClass(vote.voto)}`}>{vote.voto}</span>
-                               </div>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+                {filteredVotes.length > 0 ? (
+                    sortedProposalIds.map(proposalId => {
+                        const proposal = getProposalDetails(proposalId);
+                        if (!proposal) return null;
+                        return (
+                            <div key={proposalId} className="bg-white border border-gray-200 rounded-lg printable-proposal">
+                                <div className="p-3 bg-gray-100 border-b border-gray-200">
+                                    <p className="font-semibold text-gray-800">{String(proposal.titulo || '')}</p>
+                                    <p className="text-sm text-gray-600">{String(proposal.categoria || '')}</p>
+                                </div>
+                                <div className="divide-y divide-gray-100">
+                                    {votesByProposal[proposalId]
+                                        .sort((a,b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+                                        .map(vote => (
+                                        <div key={vote.id} className="p-3 flex flex-wrap justify-between items-center gap-2">
+                                            <div>
+                                                <p className="font-mono text-sm text-gray-700">{String(vote.user_code || '')}</p>
+                                                <p className="text-xs text-gray-500">{new Date(vote.timestamp).toLocaleString()}</p>
+                                            </div>
+                                            <span className={`px-3 py-1 rounded-full text-sm font-bold ${getVoteClass(vote.voto)}`}>{String(vote.voto || '')}</span>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    );
-                }) : (
+                        );
+                    })
+                ) : (
                      <div className="text-center text-gray-500 py-8">
                          <span className="text-2xl">🧐</span>
                          <p>Nenhum voto encontrado com os filtros selecionados.</p>

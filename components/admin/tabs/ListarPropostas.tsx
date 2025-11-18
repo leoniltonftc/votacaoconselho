@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Proposal, ProposalResult, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
 import EditProposalModal from '../../modals/EditProposalModal';
@@ -27,6 +27,50 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
     const [filtroMunicipio, setFiltroMunicipio] = useState('');
     const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
 
+    const { regionais, municipios, filteredProposals } = useMemo(() => {
+        try {
+            const safeProposals = Array.isArray(proposals) ? proposals.filter(p => p && typeof p === 'object') : [];
+
+            const regionaisList = [...new Set(
+                safeProposals
+                    .map(p => String(p.regional_saude || ''))
+                    .flatMap(r => r.split(',').map(item => item.trim()))
+                    .filter(Boolean)
+            )].sort((a: string, b: string) => a.localeCompare(b));
+
+            const municipiosList = [...new Set(
+                safeProposals
+                    .map(p => String(p.municipio || ''))
+                    .flatMap(m => m.split(',').map(item => item.trim()))
+                    .filter(Boolean)
+            )].sort((a: string, b: string) => a.localeCompare(b));
+            
+            const filtered = safeProposals
+                .filter(p => !filtroCategoria || p.categoria === filtroCategoria)
+                .filter(p => !filtroAbrangencia || p.abrangencia === filtroAbrangencia)
+                .filter(p => !filtroRegional || String(p.regional_saude || '').split(',').map(item => item.trim()).includes(filtroRegional))
+                .filter(p => !filtroMunicipio || String(p.municipio || '').split(',').map(item => item.trim()).includes(filtroMunicipio))
+                .sort((a, b) => {
+                    const eixoCompare = String(a.categoria || '').localeCompare(String(b.categoria || ''));
+                    if (eixoCompare !== 0) return eixoCompare;
+                    return String(a.titulo || '').localeCompare(String(b.titulo || ''));
+                });
+
+            return {
+                regionais: regionaisList,
+                municipios: municipiosList,
+                filteredProposals: filtered
+            };
+        } catch (error) {
+            console.error("CRITICAL ERROR in ListarPropostas: Could not process proposals. Returning empty list to prevent app crash.", error);
+            return {
+                regionais: [],
+                municipios: [],
+                filteredProposals: []
+            };
+        }
+    }, [proposals, filtroCategoria, filtroAbrangencia, filtroRegional, filtroMunicipio]);
+
     const formatDuration = (totalSeconds: number | undefined): string => {
         if (totalSeconds === undefined || totalSeconds < 0) return 'N/A';
         const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
@@ -34,35 +78,6 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
         const seconds = (totalSeconds % 60).toString().padStart(2, '0');
         return `${hours}:${minutes}:${seconds}`;
     };
-
-    const regionais = [...new Set(
-        proposals
-            .map(p => p.regional_saude)
-            .filter(Boolean)
-            .flatMap(r => r.split(',').map(item => item.trim()))
-            .filter(Boolean)
-// Fix: Explicitly cast to string for sorting to avoid 'unknown' type error.
-    )].sort((a, b) => String(a).localeCompare(String(b)));
-    
-    const municipios = [...new Set(
-        proposals
-            .map(p => p.municipio)
-            .filter(Boolean)
-            .flatMap(m => m.split(',').map(item => item.trim()))
-            .filter(Boolean)
-// Fix: Explicitly cast to string for sorting to avoid 'unknown' type error.
-    )].sort((a, b) => String(a).localeCompare(String(b)));
-
-    const filteredProposals = proposals
-        .filter(p => !filtroCategoria || p.categoria === filtroCategoria)
-        .filter(p => !filtroAbrangencia || p.abrangencia === filtroAbrangencia)
-        .filter(p => !filtroRegional || (p.regional_saude && p.regional_saude.split(',').map(item => item.trim()).includes(filtroRegional)))
-        .filter(p => !filtroMunicipio || (p.municipio && p.municipio.split(',').map(item => item.trim()).includes(filtroMunicipio)))
-        .sort((a, b) => {
-            const eixoCompare = a.categoria.localeCompare(b.categoria);
-            if (eixoCompare !== 0) return eixoCompare;
-            return a.titulo.localeCompare(b.titulo);
-        });
 
     const handleDelete = (proposal: Proposal) => {
         if (window.confirm(`Tem certeza que deseja excluir a proposta "${proposal.titulo}"?`)) {
@@ -126,11 +141,11 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                 p.municipio,
                 p.status || ProposalStatus.PENDENTE,
                 p.status === ProposalStatus.VOTADA ? (p.resultado_final || 'N/A') : 'Pendente',
-                p.status === ProposalStatus.VOTADA ? (p.votos_sim ?? 0) : '-',
-                p.status === ProposalStatus.VOTADA ? (p.votos_nao ?? 0) : '-',
-                p.status === ProposalStatus.VOTADA ? (p.votos_abstencao ?? 0) : '-',
-                p.status === ProposalStatus.VOTADA ? (p.total_votos ?? 0) : '-',
-                p.status === ProposalStatus.VOTADA ? formatDuration(p.voting_duration_seconds) : '-',
+                p.votos_sim ?? 'N/A',
+                p.votos_nao ?? 'N/A',
+                p.votos_abstencao ?? 'N/A',
+                p.total_votos ?? 'N/A',
+                formatDuration(p.voting_duration_seconds),
             ];
             tableRows.push(proposalData.map(d => String(d)));
         });
@@ -142,17 +157,20 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
             headStyles: { fillColor: [41, 128, 185] },
             styles: { fontSize: 8, cellPadding: 2 },
             columnStyles: { 
-                1: { cellWidth: 50 }, // Título
+                1: { cellWidth: 50 },
+                2: { cellWidth: 25 },
+                3: { cellWidth: 25 },
+                4: { cellWidth: 25 },
             }
         });
-
+        
         doc.save("lista_propostas.pdf");
       } catch (error) {
-          alert(`Ocorreu um erro ao exportar o PDF: ${(error as Error).message}`);
-          console.error("PDF Export Error:", error);
+        alert(`Ocorreu um erro ao exportar o PDF: ${(error as Error).message}`);
+        console.error("PDF Export Error:", error);
       }
     };
-    
+
     const getResultClass = (result: ProposalResult | null | undefined) => {
         switch (result) {
             case ProposalResult.APROVADA:
@@ -169,114 +187,97 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
     };
 
     return (
-        <div>
-            <div className="mb-4 flex flex-wrap justify-between items-center gap-4">
-                <h4 className="text-md font-semibold text-gray-700">Propostas Cadastradas</h4>
-                <div className="text-sm text-gray-500">Total: {filteredProposals.length}</div>
+        <div className="printable-section">
+            <div className="mb-4">
+                <h4 className="text-md font-semibold text-gray-700 mb-2">Propostas Cadastradas ({filteredProposals.length})</h4>
+                <p className="text-sm text-gray-600">Visualize, edite ou exclua as propostas do sistema.</p>
             </div>
-            <div className="no-print mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Eixo:</label>
-                    <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                        <option value="">Todos os eixos</option>
-                        {EIXOS.map(eixo => <option key={eixo} value={eixo}>{eixo}</option>)}
-                    </select>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Abrangência:</label>
-                    <select value={filtroAbrangencia} onChange={e => setFiltroAbrangencia(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                        <option value="">Todas</option>
-                        {ABRANGENCIAS.map(item => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Regional:</label>
-                    <select value={filtroRegional} onChange={e => setFiltroRegional(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                        <option value="">Todas</option>
-                        {regionais.map(item => <option key={item} value={item}>{item}</option>)}
-                    </select>
-                </div>
-                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Município:</label>
-                    <select value={filtroMunicipio} onChange={e => setFiltroMunicipio(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg">
-                        <option value="">Todos</option>
-                        {municipios.map(item => <option key={item} value={item}>{item}</option>)}
-                    </select>
+
+            <div className="no-print mb-4 p-4 bg-gray-100 rounded-lg space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Eixo:</label>
+                        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Todos os eixos</option>
+                            {EIXOS.map(eixo => <option key={eixo} value={eixo}>{eixo}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Abrangência:</label>
+                        <select value={filtroAbrangencia} onChange={e => setFiltroAbrangencia(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Todas</option>
+                            {ABRANGENCIAS.map(item => <option key={item} value={item}>{item}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Regional:</label>
+                        <select value={filtroRegional} onChange={e => setFiltroRegional(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Todas</option>
+                            {regionais.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Município:</label>
+                        <select value={filtroMunicipio} onChange={e => setFiltroMunicipio(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                            <option value="">Todos</option>
+                            {municipios.map(m => <option key={m} value={m}>{m}</option>)}
+                        </select>
+                    </div>
                 </div>
             </div>
-            
+
             <div className="no-print bg-gray-100 rounded-lg p-3 mb-4 flex flex-wrap gap-3">
-                <button onClick={handlePrint} disabled={filteredProposals.length === 0} className="flex-1 min-w-[120px] bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50">
+                 <button onClick={handlePrint} disabled={filteredProposals.length === 0} className="flex-1 min-w-[120px] bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50">
                     🖨️ Imprimir Lista
                 </button>
-                <button onClick={handleExportPDF} disabled={filteredProposals.length === 0} className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50">
+                 <button onClick={handleExportPDF} disabled={filteredProposals.length === 0} className="flex-1 min-w-[120px] bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50">
                     📄 Exportar PDF
                 </button>
             </div>
-
-            <div className="space-y-3 max-h-96 overflow-y-auto printable-section">
-                {filteredProposals.length > 0 ? filteredProposals.map(proposta => (
+            
+            <div className="space-y-3 max-h-96 overflow-y-auto">
+                 {filteredProposals.length > 0 ? filteredProposals.map(proposta => (
                     <div key={proposta.id} className="bg-white border border-gray-200 rounded-lg p-4 printable-proposal">
-                        <div className="flex justify-between items-start">
-                            <div className="flex-1">
-                                <h5 className="font-semibold text-gray-800 mb-1">{proposta.titulo}</h5>
-                                <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2 flex-wrap gap-1">
-                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-xs font-medium">{proposta.categoria}</span>
-                                    <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded-full text-xs font-medium">{proposta.abrangencia}</span>
-                                    <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">{proposta.regional_saude}</span>
-                                    <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded-full text-xs font-medium">{proposta.municipio}</span>
-                                </div>
-                                <p className="text-gray-700 text-sm">{proposta.descricao}</p>
+                        <div className="flex flex-col sm:flex-row sm:justify-between">
+                             <div className="flex-1 mb-3 sm:mb-0">
+                                <span className={`text-xs font-bold p-1 px-2 rounded-full ${proposta.status === ProposalStatus.VOTADA ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                    {String(proposta.status || ProposalStatus.PENDENTE)}
+                                </span>
+                                <h5 className="font-semibold text-gray-800 mt-2">{String(proposta.titulo || '')}</h5>
+                                <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
+                                <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
+                                <p className="text-sm text-gray-600 mt-2 line-clamp-3">{String(proposta.descricao || '')}</p>
                             </div>
-                            <div className="ml-4 flex flex-col space-y-2 no-print">
-                                <button onClick={() => setEditingProposal(proposta)} className="text-blue-500 hover:text-blue-700 text-sm font-medium">✏️ Editar</button>
-                                <button onClick={() => handleDelete(proposta)} className="text-red-500 hover:text-red-700 text-sm font-medium">🗑️ Excluir</button>
+                            <div className="no-print flex-shrink-0 flex sm:flex-col sm:space-y-2 sm:items-end space-x-2 sm:space-x-0">
+                                <button onClick={() => setEditingProposal(proposta)} className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg">✏️ Editar</button>
+                                <button onClick={() => handleDelete(proposta)} className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-2 rounded-lg">🗑️ Excluir</button>
                             </div>
                         </div>
                         {proposta.status === ProposalStatus.VOTADA && (
-                            <div className="mt-3 pt-3 border-t border-gray-200">
-                                <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
-                                    <h6 className="text-xs font-semibold text-gray-500 uppercase">Resultado da Votação</h6>
-                                    <div className="flex items-center space-x-2">
-                                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
-                                            <span className="font-semibold">Duração:</span> {formatDuration(proposta.voting_duration_seconds)}
-                                        </div>
-                                        <div className={`text-xs font-bold p-1 px-2 rounded ${getResultClass(proposta.resultado_final)}`}>
-                                            {proposta.resultado_final || 'N/A'}
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-                                    <div className="bg-blue-50 p-2 rounded">
-                                        <div className="font-bold text-blue-800 text-base">{proposta.total_votos ?? 0}</div>
-                                        <div className="text-blue-600">Total</div>
-                                    </div>
-                                    <div className="bg-green-50 p-2 rounded">
-                                        <div className="font-bold text-green-800 text-base">{proposta.votos_sim ?? 0}</div>
-                                        <div className="text-green-600">Sim</div>
-                                    </div>
-                                    <div className="bg-red-50 p-2 rounded">
-                                        <div className="font-bold text-red-800 text-base">{proposta.votos_nao ?? 0}</div>
-                                        <div className="text-red-600">Não</div>
-                                    </div>
-                                    <div className="bg-yellow-50 p-2 rounded">
-                                        <div className="font-bold text-yellow-800 text-base">{proposta.votos_abstencao ?? 0}</div>
-                                        <div className="text-yellow-600">Abstenção</div>
-                                    </div>
+                             <div className="mt-3 pt-3 border-t border-gray-100 text-xs">
+                                <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                    <span className={`font-bold p-1 px-2 rounded-full ${getResultClass(proposta.resultado_final)}`}>
+                                        Resultado: {String(proposta.resultado_final || 'N/A')}
+                                    </span>
+                                    <span className="text-gray-600"><strong>Sim:</strong> {proposta.votos_sim ?? 0}</span>
+                                    <span className="text-gray-600"><strong>Não:</strong> {proposta.votos_nao ?? 0}</span>
+                                    <span className="text-gray-600"><strong>Abst:</strong> {proposta.votos_abstencao ?? 0}</span>
+                                    <span className="text-gray-600"><strong>Total:</strong> {proposta.total_votos ?? 0}</span>
+                                    <span className="text-gray-600"><strong>Duração:</strong> {formatDuration(proposta.voting_duration_seconds)}</span>
                                 </div>
                             </div>
                         )}
                     </div>
-                )) : (
+                 )) : (
                      <div className="text-center text-gray-500 py-8">
-                         <span className="text-2xl">📝</span>
+                         <span className="text-2xl">📋</span>
                          <p>Nenhuma proposta encontrada com os filtros selecionados.</p>
                      </div>
-                )}
+                 )}
             </div>
-            
+
             {editingProposal && (
-                <EditProposalModal
+                <EditProposalModal 
                     proposal={editingProposal}
                     onClose={() => setEditingProposal(null)}
                     onSave={handleUpdate}

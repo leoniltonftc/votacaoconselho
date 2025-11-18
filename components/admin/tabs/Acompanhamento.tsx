@@ -20,9 +20,9 @@ const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
     const [isExportingVoted, setIsExportingVoted] = useState(false);
 
     const sortedProposals = [...proposals].sort((a, b) => {
-        const eixoCompare = a.categoria.localeCompare(b.categoria);
+        const eixoCompare = String(a.categoria || '').localeCompare(String(b.categoria || ''));
         if (eixoCompare !== 0) return eixoCompare;
-        return a.titulo.localeCompare(b.titulo);
+        return String(a.titulo || '').localeCompare(String(b.titulo || ''));
     });
     
     const votedProposals = proposals.filter(p => p.status === ProposalStatus.VOTADA);

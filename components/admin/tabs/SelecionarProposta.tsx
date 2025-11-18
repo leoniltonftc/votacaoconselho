@@ -1,6 +1,7 @@
 
+
 import React from 'react';
-import { Proposal, CurrentProposalRecord } from '../../../types';
+import { Proposal, CurrentProposalRecord, ProposalStatus, ProposalResult } from '../../../types';
 
 // Since jspdf and jspdf-autotable are loaded from a CDN, we need to tell TypeScript they exist on the window object.
 declare global {
@@ -18,9 +19,9 @@ interface SelecionarPropostaProps {
 const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSelectProposal, showAdminMessage }) => {
 
     const sortedProposals = [...proposals].sort((a, b) => {
-        const eixoCompare = a.categoria.localeCompare(b.categoria);
+        const eixoCompare = String(a.categoria || '').localeCompare(String(b.categoria || ''));
         if (eixoCompare !== 0) return eixoCompare;
-        return a.titulo.localeCompare(b.titulo);
+        return String(a.titulo || '').localeCompare(String(b.titulo || ''));
     });
 
     const handleSelect = (proposal: Proposal) => {
@@ -86,7 +87,7 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
                     p.regional_saude,
                     p.municipio,
                 ];
-                tableRows.push(proposalData);
+                tableRows.push(proposalData.map(d => String(d || '')));
             });
 
             (doc as any).autoTable({
@@ -105,6 +106,21 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
         } catch (error) {
             alert(`Ocorreu um erro ao exportar o PDF: ${(error as Error).message}`);
             console.error("PDF Export Error:", error);
+        }
+    };
+    
+    const getResultClass = (result: ProposalResult | null | undefined) => {
+        switch (result) {
+            case ProposalResult.APROVADA:
+                return 'bg-green-100 text-green-800';
+            case ProposalResult.REJEITADA:
+                return 'bg-red-100 text-red-800';
+            case ProposalResult.EMPATE:
+                return 'bg-gray-100 text-gray-800';
+            case ProposalResult.ABSTENCAO_MAJORITARIA:
+                return 'bg-yellow-100 text-yellow-800';
+            default:
+                return 'bg-gray-100 text-gray-500';
         }
     };
 
@@ -130,13 +146,29 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
                     <div key={proposta.id} className="bg-white border border-gray-200 rounded-lg p-4 printable-proposal">
                         <div className="flex justify-between items-center">
                             <div className="flex-1">
-                                <h5 className="font-semibold text-gray-800">{proposta.titulo}</h5>
-                                <p className="text-sm text-gray-600">{proposta.categoria} • {proposta.abrangencia}</p>
-                                <p className="text-xs text-gray-500 mt-1">{proposta.regional_saude} • {proposta.municipio}</p>
+                                <h5 className="font-semibold text-gray-800">{String(proposta.titulo || '')}</h5>
+                                <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
+                                <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
+                                {proposta.status === ProposalStatus.VOTADA && (
+                                    <div className="mt-2 pt-2 border-t border-gray-100 text-xs">
+                                        <span className={`font-bold p-1 px-2 rounded-full ${getResultClass(proposta.resultado_final)}`}>
+                                            Resultado: {String(proposta.resultado_final || 'N/A')}
+                                        </span>
+                                        <span className="ml-2 text-gray-600">
+                                            (Sim: {proposta.votos_sim ?? 0}, Não: {proposta.votos_nao ?? 0}, Abst: {proposta.votos_abstencao ?? 0})
+                                        </span>
+                                    </div>
+                                )}
                             </div>
-                            <button onClick={() => handleSelect(proposta)} className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium no-print">
-                                🎯 Selecionar
-                            </button>
+                            {proposta.status === ProposalStatus.VOTADA ? (
+                                <button disabled className="ml-4 bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium no-print cursor-not-allowed">
+                                    ✔️ Votada
+                                </button>
+                            ) : (
+                                <button onClick={() => handleSelect(proposta)} className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium no-print">
+                                    🎯 Selecionar
+                                </button>
+                            )}
                         </div>
                     </div>
                  )) : (
