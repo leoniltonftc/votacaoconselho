@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 // Fix: Import CurrentProposalRecord to correctly type filtered proposal data.
@@ -32,14 +29,24 @@ const dataSdk = {
     return { isOk: true };
   },
   _loadData: function() {
+    let finalData: AppData[] = [];
     try {
-      const data = localStorage.getItem('voting_app_data');
-      this._data = data ? JSON.parse(data) : [];
-      this._onDataChanged(this._data);
+        const data = localStorage.getItem('voting_app_data');
+        const parsedData = data ? JSON.parse(data) : [];
+        if (Array.isArray(parsedData)) {
+            // Robustness: Filter out non-object entries to prevent downstream errors.
+            finalData = parsedData.filter(item => item && typeof item === 'object');
+            if (finalData.length !== parsedData.length) {
+                console.warn("Data corruption detected: Removed invalid entries from localStorage.");
+            }
+        } else if (data) { 
+            console.warn("Corrupted data in localStorage was not an array. Resetting state.");
+        }
     } catch (e) {
-      console.error("Failed to load data from localStorage", e);
-      this._data = [];
+        console.error("Failed to parse data from localStorage, resetting state.", e);
     }
+    this._data = finalData;
+    this._onDataChanged(this._data);
   },
   _saveData: function() {
     try {
@@ -74,9 +81,7 @@ const dataSdk = {
   },
   deleteAll: async function(type?: string) {
     if (type) {
-        const itemsToKeep = this._data.filter(d => d.tipo !== type);
-        const controlItemsToKeep = this._data.filter(d => d.tipo === 'control' || d.tipo === 'sheets_config' || d.tipo === 'proposals_sheets_config' || d.tipo === 'proposal' );
-        this._data = this._data.filter(d => d.tipo === 'proposta_cadastrada' || d.tipo === 'sheets_config' || d.tipo === 'proposals_sheets_config');
+        this._data = this._data.filter(d => d && d.tipo !== type);
     } else {
         this._data = [];
     }
@@ -111,15 +116,20 @@ const App: React.FC = () => {
     const hasVoted = authenticatedUserCode ? votes.some(v => v.user_code === authenticatedUserCode) : false;
 
     const onDataChanged = useCallback((data: AppData[]) => {
-        const allVotes = data.filter(item => item.tipo !== 'control' && item.tipo !== 'proposal' && item.tipo !== 'sheets_config' && item.tipo !== 'proposals_sheets_config' && item.tipo !== 'proposta_cadastrada') as Vote[];
+      if (!Array.isArray(data)) {
+        console.error("onDataChanged received non-array data. Aborting.", data);
+        return;
+      }
+      try {
+        const allVotes = data.filter(item => item && item.tipo !== 'control' && item.tipo !== 'proposal' && item.tipo !== 'sheets_config' && item.tipo !== 'proposals_sheets_config' && item.tipo !== 'proposta_cadastrada') as Vote[];
         setVotes(allVotes);
         
-        const allProposals = data.filter(item => item.tipo === 'proposta_cadastrada') as Proposal[];
+        const allProposals = data.filter(item => item && item.tipo === 'proposta_cadastrada') as Proposal[];
         setProposals(allProposals);
 
-        const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
+        const controlRecords = data.filter(item => item && item.tipo === 'control') as ControlRecord[];
         if (controlRecords.length > 0) {
-            const latestControl = controlRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            const latestControl = controlRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
             if (latestControl.status === 'reset' || latestControl.status === 'new_voting_created') {
                 setVotingStatus(VotingStatus.NOT_STARTED);
                 setVotingStartTime(null);
@@ -135,9 +145,9 @@ const App: React.FC = () => {
         }
 
         // Fix: Add type assertion to correctly type `proposalRecords` after filtering.
-        const proposalRecords = data.filter(item => item.tipo === 'proposal') as CurrentProposalRecord[];
+        const proposalRecords = data.filter(item => item && item.tipo === 'proposal') as CurrentProposalRecord[];
         if (proposalRecords.length > 0) {
-            const latestProposal = proposalRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            const latestProposal = proposalRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
             setCurrentProposalText(latestProposal.proposta);
             setCurrentEixoText(latestProposal.eixo);
             setCurrentProposalTitle(latestProposal.titulo);
@@ -150,18 +160,24 @@ const App: React.FC = () => {
              setCurrentProposal(null);
         }
 
-        const sheetsConfigRecords = data.filter(item => item.tipo === 'sheets_config') as SheetsConfig[];
+        const sheetsConfigRecords = data.filter(item => item && item.tipo === 'sheets_config') as SheetsConfig[];
         if (sheetsConfigRecords.length > 0) {
-            const latestConfig = sheetsConfigRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            const latestConfig = sheetsConfigRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
             setSheetsConfig(latestConfig);
         }
         
-        const proposalSheetsConfigRecords = data.filter(item => item.tipo === 'proposals_sheets_config') as ProposalSheetsConfig[];
+        const proposalSheetsConfigRecords = data.filter(item => item && item.tipo === 'proposals_sheets_config') as ProposalSheetsConfig[];
         if (proposalSheetsConfigRecords.length > 0) {
-            const latestConfig = proposalSheetsConfigRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+            const latestConfig = proposalSheetsConfigRecords.sort((a, b) => (new Date(b.timestamp).getTime() || 0) - (new Date(a.timestamp).getTime() || 0))[0];
             setProposalSheetsConfig(latestConfig);
         }
-
+      } catch (error) {
+          console.error("Critical error processing data. The application state is likely corrupted.", error);
+          console.error("Corrupted data:", data);
+          // Attempt to recover by clearing the corrupted state.
+          dataSdk.deleteAll(); 
+          console.warn("Ocorreu um erro crítico ao carregar os dados da aplicação. O estado foi reiniciado para garantir a estabilidade.");
+      }
     }, []);
 
     useEffect(() => {

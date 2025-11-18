@@ -27,6 +27,14 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
     const [filtroMunicipio, setFiltroMunicipio] = useState('');
     const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
 
+    const formatDuration = (totalSeconds: number | undefined): string => {
+        if (totalSeconds === undefined || totalSeconds < 0) return 'N/A';
+        const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+        const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+        const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+        return `${hours}:${minutes}:${seconds}`;
+    };
+
     const regionais = [...new Set(
         proposals
             .map(p => p.regional_saude)
@@ -106,7 +114,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
         doc.text(`Relatório gerado em: ${new Date().toLocaleString()}`, 14, 30);
         doc.text(`Total de propostas (filtrado): ${filteredProposals.length}`, 14, 36);
 
-        const tableColumn = ["Eixo", "Título", "Abrangência", "Regional", "Município", "Status", "Resultado", "Sim", "Não", "Abst.", "Total Votos"];
+        const tableColumn = ["Eixo", "Título", "Abrangência", "Regional", "Município", "Status", "Resultado", "Sim", "Não", "Abst.", "Total", "Duração"];
         const tableRows: (string | number)[][] = [];
 
         filteredProposals.forEach(p => {
@@ -122,6 +130,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                 p.status === ProposalStatus.VOTADA ? (p.votos_nao ?? 0) : '-',
                 p.status === ProposalStatus.VOTADA ? (p.votos_abstencao ?? 0) : '-',
                 p.status === ProposalStatus.VOTADA ? (p.total_votos ?? 0) : '-',
+                p.status === ProposalStatus.VOTADA ? formatDuration(p.voting_duration_seconds) : '-',
             ];
             tableRows.push(proposalData.map(d => String(d)));
         });
@@ -133,7 +142,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
             headStyles: { fillColor: [41, 128, 185] },
             styles: { fontSize: 8, cellPadding: 2 },
             columnStyles: { 
-                1: { cellWidth: 60 }, // Título
+                1: { cellWidth: 50 }, // Título
             }
         });
 
@@ -226,10 +235,15 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                         </div>
                         {proposta.status === ProposalStatus.VOTADA && (
                             <div className="mt-3 pt-3 border-t border-gray-200">
-                                <div className="flex justify-between items-center mb-2">
+                                <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
                                     <h6 className="text-xs font-semibold text-gray-500 uppercase">Resultado da Votação</h6>
-                                    <div className={`text-xs font-bold p-1 px-2 rounded ${getResultClass(proposta.resultado_final)}`}>
-                                        {proposta.resultado_final || 'N/A'}
+                                    <div className="flex items-center space-x-2">
+                                        <div className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                            <span className="font-semibold">Duração:</span> {formatDuration(proposta.voting_duration_seconds)}
+                                        </div>
+                                        <div className={`text-xs font-bold p-1 px-2 rounded ${getResultClass(proposta.resultado_final)}`}>
+                                            {proposta.resultado_final || 'N/A'}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
