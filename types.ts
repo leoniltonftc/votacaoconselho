@@ -1,4 +1,5 @@
 
+
 export interface Vote {
     id: string;
     tipo: 'vote';
@@ -40,6 +41,7 @@ export interface Proposal {
     total_votos?: number;
     data_votacao?: string | null;
     resultado_final?: ProposalResult | null;
+    voting_duration_seconds?: number;
 }
 
 export enum VotingStatus {

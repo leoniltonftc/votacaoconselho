@@ -1,5 +1,6 @@
 
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
 // Fix: Import CurrentProposalRecord to correctly type filtered proposal data.
@@ -246,6 +247,8 @@ const App: React.FC = () => {
         } else if (naoVotes > simVotes) {
             resultadoFinal = ProposalResult.REJEITADA;
         }
+        
+        const durationInSeconds = votingStartTime ? Math.round((new Date().getTime() - new Date(votingStartTime).getTime()) / 1000) : 0;
 
         const updatedProposal: Proposal = {
             ...currentProposal,
@@ -255,7 +258,8 @@ const App: React.FC = () => {
             total_votos: votes.length,
             data_votacao: new Date().toISOString(),
             resultado_final: resultadoFinal,
-            status: ProposalStatus.VOTADA
+            status: ProposalStatus.VOTADA,
+            voting_duration_seconds: durationInSeconds,
         };
         await dataSdk.update(updatedProposal);
     };

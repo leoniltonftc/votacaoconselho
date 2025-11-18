@@ -93,7 +93,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
       
       try {
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF();
+        const doc = new jsPDF({ orientation: "landscape" });
         
         if (typeof (doc as any).autoTable !== 'function') {
             throw new Error("A extensão jsPDF-AutoTable não foi carregada corretamente.");
@@ -106,19 +106,24 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
         doc.text(`Relatório gerado em: ${new Date().toLocaleString()}`, 14, 30);
         doc.text(`Total de propostas (filtrado): ${filteredProposals.length}`, 14, 36);
 
-        const tableColumn = ["Eixo", "Título", "Descrição", "Abrangência", "Regional", "Município"];
-        const tableRows: string[][] = [];
+        const tableColumn = ["Eixo", "Título", "Abrangência", "Regional", "Município", "Status", "Resultado", "Sim", "Não", "Abst.", "Total Votos"];
+        const tableRows: (string | number)[][] = [];
 
         filteredProposals.forEach(p => {
             const proposalData = [
                 p.categoria,
                 p.titulo,
-                p.descricao,
                 p.abrangencia,
                 p.regional_saude,
                 p.municipio,
+                p.status || ProposalStatus.PENDENTE,
+                p.status === ProposalStatus.VOTADA ? (p.resultado_final || 'N/A') : 'Pendente',
+                p.status === ProposalStatus.VOTADA ? (p.votos_sim ?? 0) : '-',
+                p.status === ProposalStatus.VOTADA ? (p.votos_nao ?? 0) : '-',
+                p.status === ProposalStatus.VOTADA ? (p.votos_abstencao ?? 0) : '-',
+                p.status === ProposalStatus.VOTADA ? (p.total_votos ?? 0) : '-',
             ];
-            tableRows.push(proposalData);
+            tableRows.push(proposalData.map(d => String(d)));
         });
 
         (doc as any).autoTable({
@@ -128,8 +133,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
             headStyles: { fillColor: [41, 128, 185] },
             styles: { fontSize: 8, cellPadding: 2 },
             columnStyles: { 
-                1: { cellWidth: 40 }, 
-                2: { cellWidth: 60 } 
+                1: { cellWidth: 60 }, // Título
             }
         });
 

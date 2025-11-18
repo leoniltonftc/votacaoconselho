@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import { Proposal, ProposalResult, ProposalStatus } from '../../../types';
 import { EIXOS } from '../../../constants';
@@ -16,12 +17,15 @@ interface AcompanhamentoProps {
 
 const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
     const [isExporting, setIsExporting] = useState(false);
+    const [isExportingVoted, setIsExportingVoted] = useState(false);
 
     const sortedProposals = [...proposals].sort((a, b) => {
         const eixoCompare = a.categoria.localeCompare(b.categoria);
         if (eixoCompare !== 0) return eixoCompare;
         return a.titulo.localeCompare(b.titulo);
     });
+    
+    const votedProposals = proposals.filter(p => p.status === ProposalStatus.VOTADA);
     
     const stats = {
         total: proposals.length,
@@ -102,6 +106,73 @@ const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
             alert(`Ocorreu um erro ao exportar o PDF: ${(error as Error).message}`);
         } finally {
             setIsExporting(false);
+        }
+    };
+
+    const handleExportVotedPDF = () => {
+        if (typeof window.jspdf === 'undefined' || typeof window.jspdf.jsPDF === 'undefined') {
+            alert("Erro: A biblioteca para gerar PDF (jsPDF) não foi carregada.");
+            return;
+        }
+        
+        setIsExportingVoted(true);
+        try {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: "landscape" });
+
+            if (typeof (doc as any).autoTable !== 'function') {
+                throw new Error("A extensão jsPDF-AutoTable não foi carregada corretamente.");
+            }
+
+            doc.setFontSize(18);
+            doc.text("Relatório de Propostas Votadas", 14, 22);
+            doc.setFontSize(11);
+            doc.setTextColor(100);
+            doc.text(`Relatório gerado em: ${new Date().toLocaleString()}`, 14, 30);
+            
+            const formatDuration = (totalSeconds: number | undefined): string => {
+                if (totalSeconds === undefined || totalSeconds < 0) return 'N/A';
+                const hours = Math.floor(totalSeconds / 3600).toString().padStart(2, '0');
+                const minutes = Math.floor((totalSeconds % 3600) / 60).toString().padStart(2, '0');
+                const seconds = (totalSeconds % 60).toString().padStart(2, '0');
+                return `${hours}:${minutes}:${seconds}`;
+            };
+
+            const tableColumn = ["Eixo", "Título", "Abrangência", "Tempo de Votação", "Resultado", "Sim", "Não", "Abst.", "Total"];
+            const tableRows: (string | number)[][] = [];
+
+            votedProposals.forEach(p => {
+                const proposalData = [
+                    p.categoria,
+                    p.titulo,
+                    p.abrangencia,
+                    formatDuration(p.voting_duration_seconds),
+                    p.resultado_final || 'N/A',
+                    p.votos_sim ?? 0,
+                    p.votos_nao ?? 0,
+                    p.votos_abstencao ?? 0,
+                    p.total_votos ?? 0,
+                ];
+                tableRows.push(proposalData.map(d => String(d)));
+            });
+            
+            (doc as any).autoTable({
+                head: [tableColumn],
+                body: tableRows,
+                startY: 40,
+                headStyles: { fillColor: [74, 35, 90] },
+                styles: { fontSize: 9, cellPadding: 2 },
+                 columnStyles: { 
+                    1: { cellWidth: 80 }, 
+                }
+            });
+
+            doc.save("relatorio_votacoes.pdf");
+        } catch(error) {
+            console.error("Error exporting Voted PDF:", error);
+            alert(`Ocorreu um erro ao exportar o PDF de votações: ${(error as Error).message}`);
+        } finally {
+            setIsExportingVoted(false);
         }
     };
 
@@ -202,13 +273,16 @@ const Acompanhamento: React.FC<AcompanhamentoProps> = ({ proposals }) => {
             </div>
              {/* Note: PDF and CSV export functionality is not implemented in this component for simplicity */}
             <div className="bg-gray-100 rounded-lg p-4">
-                <h5 className="text-sm font-semibold text-gray-700 mb-3">📄 Exportar Relatório Completo</h5>
-                <div className="flex flex-wrap gap-3">
-                    <button onClick={handleExportPDF} disabled={isExporting || proposals.length === 0} className="flex-1 min-w-[140px] bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isExporting ? 'Gerando...' : '📄 Exportar PDF'}
+                <h5 className="text-sm font-semibold text-gray-700 mb-3">📄 Exportar Relatórios</h5>
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+                    <button onClick={handleExportVotedPDF} disabled={isExportingVoted || isExporting || votedProposals.length === 0} className="flex-1 min-w-[140px] bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isExportingVoted ? 'Gerando...' : '📄 Relatório de Votações'}
                     </button>
-                    <button onClick={handleExportCSV} disabled={isExporting || proposals.length === 0} className="flex-1 min-w-[140px] bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                        {isExporting ? 'Gerando...' : '📊 Exportar CSV'}
+                    <button onClick={handleExportPDF} disabled={isExporting || isExportingVoted || proposals.length === 0} className="flex-1 min-w-[140px] bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isExporting ? 'Gerando...' : '📋 Relatório Completo (PDF)'}
+                    </button>
+                    <button onClick={handleExportCSV} disabled={isExporting || isExportingVoted || proposals.length === 0} className="flex-1 min-w-[140px] bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        {isExporting ? 'Gerando...' : '📊 Relatório Completo (CSV)'}
                     </button>
                 </div>
                  {proposals.length === 0 && <p className="text-xs text-gray-500 mt-2">Nenhuma proposta para exportar.</p>}
