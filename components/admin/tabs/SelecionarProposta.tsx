@@ -1,5 +1,4 @@
 
-
 import React from 'react';
 import { Proposal, CurrentProposalRecord, ProposalStatus, ProposalResult } from '../../../types';
 
@@ -14,9 +13,10 @@ interface SelecionarPropostaProps {
     proposals: Proposal[];
     onSelectProposal: (proposalData: CurrentProposalRecord) => void;
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
+    onResetProposalVote: (proposalId: string) => void;
 }
 
-const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSelectProposal, showAdminMessage }) => {
+const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSelectProposal, showAdminMessage, onResetProposalVote }) => {
 
     const sortedProposals = [...proposals].sort((a, b) => {
         const eixoCompare = String(a.categoria || '').localeCompare(String(b.categoria || ''));
@@ -36,6 +36,13 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
         };
         onSelectProposal(proposalData);
         showAdminMessage('success', `Proposta "${proposal.titulo}" selecionada para votação.`);
+    };
+
+    const handleReset = (proposal: Proposal) => {
+        if (window.confirm(`Tem certeza que deseja ZERAR os votos da proposta "${proposal.titulo}"? Isso permitirá que ela seja selecionada novamente.`)) {
+            onResetProposalVote(proposal.id);
+            showAdminMessage('success', `Votação da proposta "${proposal.titulo}" zerada com sucesso.`);
+        }
     };
 
     const handlePrint = () => {
@@ -124,6 +131,11 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
         }
     };
 
+    const calculatePercentage = (value: number | undefined, total: number | undefined) => {
+        if (!value || !total || total === 0) return '0%';
+        return `${Math.round((value / total) * 100)}%`;
+    };
+
 
     return (
         <div className="printable-section">
@@ -150,22 +162,43 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, onSe
                                 <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
                                 <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
                                 {proposta.status === ProposalStatus.VOTADA && (
-                                    <div className="mt-2 pt-2 border-t border-gray-100 text-xs">
-                                        <span className={`font-bold p-1 px-2 rounded-full ${getResultClass(proposta.resultado_final)}`}>
-                                            Resultado: {String(proposta.resultado_final || 'N/A')}
-                                        </span>
-                                        <span className="ml-2 text-gray-600">
-                                            (Sim: {proposta.votos_sim ?? 0}, Não: {proposta.votos_nao ?? 0}, Abst: {proposta.votos_abstencao ?? 0})
-                                        </span>
+                                    <div className="mt-3 pt-2 border-t border-gray-100 text-xs">
+                                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                                            <span className={`font-bold p-1 px-2 rounded-full ${getResultClass(proposta.resultado_final)}`}>
+                                                {String(proposta.resultado_final || 'N/A')}
+                                            </span>
+                                            <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-1 rounded">
+                                                Total de Votos: {proposta.total_votos ?? 0}
+                                            </span>
+                                        </div>
+                                        <div className="flex flex-wrap gap-3 text-gray-600">
+                                            <span className="flex items-center">
+                                                <span className="w-2 h-2 rounded-full bg-green-500 mr-1"></span>
+                                                <strong>Sim:</strong> {proposta.votos_sim ?? 0} ({calculatePercentage(proposta.votos_sim, proposta.total_votos)})
+                                            </span>
+                                            <span className="flex items-center">
+                                                <span className="w-2 h-2 rounded-full bg-red-500 mr-1"></span>
+                                                <strong>Não:</strong> {proposta.votos_nao ?? 0} ({calculatePercentage(proposta.votos_nao, proposta.total_votos)})
+                                            </span>
+                                            <span className="flex items-center">
+                                                <span className="w-2 h-2 rounded-full bg-yellow-500 mr-1"></span>
+                                                <strong>Abst:</strong> {proposta.votos_abstencao ?? 0} ({calculatePercentage(proposta.votos_abstencao, proposta.total_votos)})
+                                            </span>
+                                        </div>
                                     </div>
                                 )}
                             </div>
                             {proposta.status === ProposalStatus.VOTADA ? (
-                                <button disabled className="ml-4 bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium no-print cursor-not-allowed">
-                                    ✔️ Votada
-                                </button>
+                                <div className="flex flex-col gap-2 ml-4 no-print min-w-[120px]">
+                                    <button disabled className="bg-gray-400 text-white px-4 py-2 rounded-lg text-sm font-medium cursor-not-allowed w-full opacity-70">
+                                        ✔️ Votada
+                                    </button>
+                                    <button onClick={() => handleReset(proposta)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-medium w-full transition-colors shadow-sm">
+                                        🔄 Zerar
+                                    </button>
+                                </div>
                             ) : (
-                                <button onClick={() => handleSelect(proposta)} className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium no-print">
+                                <button onClick={() => handleSelect(proposta)} className="ml-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium no-print min-w-[120px] shadow-md transition-transform transform hover:scale-105">
                                     🎯 Selecionar
                                 </button>
                             )}

@@ -17,6 +17,7 @@ interface ProposalManagementProps {
     onUpdateProposal: (proposal: Proposal) => void;
     onDeleteProposal: (proposal: Proposal) => void;
     onSelectProposal: (proposalData: CurrentProposalRecord) => void;
+    onResetProposalVote: (proposalId: string) => void;
 }
 
 type ActiveTab = 'cadastrar' | 'listar' | 'selecionar' | 'acompanhamento' | 'votosIndividuais';
@@ -31,7 +32,12 @@ const ProposalManagement: React.FC<ProposalManagementProps> = (props) => {
             case 'listar':
                 return <ListarPropostas {...props} />;
             case 'selecionar':
-                return <SelecionarProposta {...props} />;
+                return <SelecionarProposta 
+                    proposals={props.proposals}
+                    onSelectProposal={props.onSelectProposal}
+                    showAdminMessage={props.showAdminMessage}
+                    onResetProposalVote={props.onResetProposalVote}
+                />;
             case 'acompanhamento':
                 return <Acompanhamento {...props} />;
             case 'votosIndividuais':

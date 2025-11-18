@@ -1,13 +1,16 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig } from '../types';
+import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser } from '../types';
 import ProposalManagement from './admin/ProposalManagement';
 import VotingControl from './admin/VotingControl';
 import SheetsAuthConfig from './admin/SheetsAuthConfig';
+import UserManagement from './admin/UserManagement';
 
 interface AdminPanelProps {
     votes: Vote[];
     proposals: Proposal[];
+    localUsers: LocalUser[];
     votingStatus: VotingStatus;
     sheetsConfig: SheetsConfig | null;
     proposalSheetsConfig: ProposalSheetsConfig | null;
@@ -21,6 +24,9 @@ interface AdminPanelProps {
     onUpdateProposal: (proposal: Proposal) => void;
     onDeleteProposal: (proposal: Proposal) => void;
     onSelectProposal: (proposalData: CurrentProposalRecord) => void;
+    onResetProposalVote: (proposalId: string) => void;
+    onCreateUser: (user: LocalUser) => void;
+    onDeleteUser: (user: LocalUser) => void;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = (props) => {
@@ -47,11 +53,19 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 showAdminMessage={showAdminMessage}
             />
 
-            <SheetsAuthConfig
-                sheetsConfig={props.sheetsConfig}
-                onSaveSheetsConfig={props.onSaveSheetsConfig}
-                showAdminMessage={showAdminMessage}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                <SheetsAuthConfig
+                    sheetsConfig={props.sheetsConfig}
+                    onSaveSheetsConfig={props.onSaveSheetsConfig}
+                    showAdminMessage={showAdminMessage}
+                />
+                <UserManagement 
+                    localUsers={props.localUsers}
+                    onCreateUser={props.onCreateUser}
+                    onDeleteUser={props.onDeleteUser}
+                    showAdminMessage={showAdminMessage}
+                />
+            </div>
             
             <ProposalManagement
                 votes={props.votes}
@@ -63,6 +77,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 onDeleteProposal={props.onDeleteProposal}
                 onSelectProposal={props.onSelectProposal}
                 showAdminMessage={showAdminMessage}
+                onResetProposalVote={props.onResetProposalVote}
             />
 
             {adminMessage && (

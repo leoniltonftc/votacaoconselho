@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord } from './types';
+import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser } from './types';
 import Header from './components/Header';
 import AuthSection from './components/AuthSection';
 import TimerSection from './components/TimerSection';
@@ -58,6 +58,10 @@ const isValidAppData = (item: any): item is AppData => {
                    typeof item.proposals_sheet_name === 'string' &&
                    typeof item.titulo_column === 'string' &&
                    typeof item.eixo_column === 'string';
+        case 'local_user':
+            return typeof item.id === 'string' &&
+                   typeof item.username === 'string' &&
+                   typeof item.password === 'string';
         default:
             return false;
     }
@@ -172,6 +176,7 @@ const App: React.FC = () => {
     const [currentProposal, setCurrentProposal] = useState<Proposal | null>(null);
     const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
     const [proposalSheetsConfig, setProposalSheetsConfig] = useState<ProposalSheetsConfig | null>(null);
+    const [localUsers, setLocalUsers] = useState<LocalUser[]>([]);
     const [votingStatus, setVotingStatus] = useState<VotingStatus>(VotingStatus.NOT_STARTED);
     const [votingStartTime, setVotingStartTime] = useState<Date | null>(null);
     const [votingEndTime, setVotingEndTime] = useState<Date | null>(null);
@@ -193,6 +198,9 @@ const App: React.FC = () => {
             
             const allProposals = data.filter(item => item.tipo === 'proposta_cadastrada') as Proposal[];
             setProposals(allProposals);
+
+            const allLocalUsers = data.filter(item => item.tipo === 'local_user') as LocalUser[];
+            setLocalUsers(allLocalUsers);
 
             const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
             if (controlRecords.length > 0) {
@@ -451,7 +459,8 @@ const App: React.FC = () => {
                 {!isUserAuthenticated ? (
                     <AuthSection 
                       onAuthenticate={handleAuthenticate}
-                      sheetsConfig={sheetsConfig} 
+                      sheetsConfig={sheetsConfig}
+                      localUsers={localUsers}
                     />
                 ) : (
                     <>
@@ -495,6 +504,7 @@ const App: React.FC = () => {
                   <AdminPanel
                     votes={votes}
                     proposals={proposals}
+                    localUsers={localUsers}
                     votingStatus={votingStatus}
                     sheetsConfig={sheetsConfig}
                     proposalSheetsConfig={proposalSheetsConfig}
@@ -509,6 +519,8 @@ const App: React.FC = () => {
                     onDeleteProposal={(proposal) => dataSdk.delete(proposal)}
                     onSelectProposal={(proposalData) => dataSdk.create(proposalData)}
                     onResetProposalVote={handleResetProposalVote}
+                    onCreateUser={(user) => dataSdk.create(user)}
+                    onDeleteUser={(user) => dataSdk.delete(user)}
                   />
                 )}
 

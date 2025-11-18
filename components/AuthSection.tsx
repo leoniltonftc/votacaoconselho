@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import { SheetsConfig } from '../types';
+import { SheetsConfig, LocalUser } from '../types';
 
 interface AuthSectionProps {
     onAuthenticate: (code: string) => void;
     sheetsConfig: SheetsConfig | null;
+    localUsers: LocalUser[];
 }
 
 // Adicionada função de análise de CSV robusta para lidar com valores que contêm vírgulas e aspas.
@@ -33,7 +34,7 @@ const parseCsvLine = (line: string): string[] => {
 }
 
 
-const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig }) => {
+const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig, localUsers }) => {
     const [password, setPassword] = useState('');
     const [error, setError] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -94,21 +95,30 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig 
         e.preventDefault();
         setError(null);
         setIsLoading(true);
-
-        if (!sheetsConfig) {
-            setError("Sistema de autenticação não configurado. Contate o administrador.");
-            setIsLoading(false);
-            return;
-        }
+        
+        const trimmedPassword = password.trim();
 
         try {
-            // Remove espaços em branco acidentais da senha digitada pelo usuário.
-            const authResult = await authenticateWithGoogleSheets(password.trim());
-            if (authResult.success) {
-                onAuthenticate(authResult.auxiliaryData!);
-            } else {
-                setError("Código inválido. Verifique seu código e tente novamente.");
+            // 1. Verificar usuários locais primeiro (prioridade)
+            const localUser = localUsers.find(u => u.password === trimmedPassword);
+            if (localUser) {
+                onAuthenticate(localUser.username);
+                setIsLoading(false);
+                return;
             }
+
+            // 2. Se não achar localmente e tiver config de planilha, tenta na planilha
+            if (sheetsConfig) {
+                const authResult = await authenticateWithGoogleSheets(trimmedPassword);
+                if (authResult.success) {
+                    onAuthenticate(authResult.auxiliaryData!);
+                } else {
+                    setError("Código inválido. Verifique seu código e tente novamente.");
+                }
+            } else {
+                 setError("Usuário não encontrado e autenticação externa não configurada.");
+            }
+
         } catch (err) {
             setError((err as Error).message || "Erro ao autenticar. Tente novamente.");
         } finally {

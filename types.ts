@@ -98,4 +98,15 @@ export interface ProposalSheetsConfig {
     timestamp: string;
 }
 
-export type AppData = Vote | Proposal | ControlRecord | CurrentProposalRecord | SheetsConfig | ProposalSheetsConfig;
+export interface LocalUser {
+    id: string;
+    tipo: 'local_user';
+    username: string;
+    password: string;
+    segmento?: string;
+    representante?: string;
+    eixo?: string;
+    timestamp: string;
+}
+
+export type AppData = Vote | Proposal | ControlRecord | CurrentProposalRecord | SheetsConfig | ProposalSheetsConfig | LocalUser;
