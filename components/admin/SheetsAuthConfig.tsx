@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { SheetsConfig } from '../../types';
 
@@ -13,6 +14,11 @@ const SheetsAuthConfig: React.FC<SheetsAuthConfigProps> = ({ sheetsConfig, onSav
     const [sheetName, setSheetName] = useState('Sheet1');
     const [usernameColumn, setUsernameColumn] = useState('A');
     const [passwordColumn, setPasswordColumn] = useState('B');
+    // Novos campos
+    const [segmentoColumn, setSegmentoColumn] = useState('C');
+    const [representanteColumn, setRepresentanteColumn] = useState('D');
+    const [eixoColumn, setEixoColumn] = useState('E');
+
     const [testStatus, setTestStatus] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
     useEffect(() => {
@@ -21,6 +27,9 @@ const SheetsAuthConfig: React.FC<SheetsAuthConfigProps> = ({ sheetsConfig, onSav
             setSheetName(sheetsConfig.sheet_name);
             setUsernameColumn(sheetsConfig.username_column);
             setPasswordColumn(sheetsConfig.password_column);
+            if (sheetsConfig.segmento_column) setSegmentoColumn(sheetsConfig.segmento_column);
+            if (sheetsConfig.representante_column) setRepresentanteColumn(sheetsConfig.representante_column);
+            if (sheetsConfig.eixo_column) setEixoColumn(sheetsConfig.eixo_column);
         }
     }, [sheetsConfig]);
 
@@ -36,6 +45,9 @@ const SheetsAuthConfig: React.FC<SheetsAuthConfigProps> = ({ sheetsConfig, onSav
             sheet_name: sheetName,
             username_column: usernameColumn,
             password_column: passwordColumn,
+            segmento_column: segmentoColumn,
+            representante_column: representanteColumn,
+            eixo_column: eixoColumn,
             timestamp: new Date().toISOString()
         });
         showAdminMessage('success', 'Configuração da planilha salva com sucesso.');
@@ -77,14 +89,26 @@ const SheetsAuthConfig: React.FC<SheetsAuthConfigProps> = ({ sheetsConfig, onSav
                     <label htmlFor="sheet-name" className="block text-sm font-medium text-gray-700 mb-2">Nome da Aba (Sheet):</label>
                     <input type="text" id="sheet-name" value={sheetName} onChange={e => setSheetName(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg"/>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                     <div>
                         <label htmlFor="username-column" className="block text-sm font-medium text-gray-700 mb-2">Coluna Nome:</label>
                         <input type="text" id="username-column" value={usernameColumn} onChange={e => setUsernameColumn(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" maxLength={2}/>
                     </div>
                     <div>
-                        <label htmlFor="password-column" className="block text-sm font-medium text-gray-700 mb-2">Coluna das Senhas:</label>
+                        <label htmlFor="password-column" className="block text-sm font-medium text-gray-700 mb-2">Coluna Senha:</label>
                         <input type="text" id="password-column" value={passwordColumn} onChange={e => setPasswordColumn(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" maxLength={2}/>
+                    </div>
+                    <div>
+                        <label htmlFor="segmento-column" className="block text-sm font-medium text-gray-700 mb-2">Col. Segmento:</label>
+                        <input type="text" id="segmento-column" value={segmentoColumn} onChange={e => setSegmentoColumn(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" maxLength={2}/>
+                    </div>
+                    <div>
+                        <label htmlFor="representante-column" className="block text-sm font-medium text-gray-700 mb-2">Col. Repres.:</label>
+                        <input type="text" id="representante-column" value={representanteColumn} onChange={e => setRepresentanteColumn(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" maxLength={2}/>
+                    </div>
+                    <div>
+                        <label htmlFor="eixo-column" className="block text-sm font-medium text-gray-700 mb-2">Coluna Eixo:</label>
+                        <input type="text" id="eixo-column" value={eixoColumn} onChange={e => setEixoColumn(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" maxLength={2}/>
                     </div>
                 </div>
                 <div className="flex space-x-3">

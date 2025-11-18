@@ -48,7 +48,10 @@ const isValidAppData = (item: any): item is AppData => {
                    typeof item.google_sheet_url === 'string' &&
                    typeof item.sheet_name === 'string' &&
                    typeof item.username_column === 'string' &&
-                   typeof item.password_column === 'string';
+                   typeof item.password_column === 'string' &&
+                   (item.segmento_column === undefined || typeof item.segmento_column === 'string') &&
+                   (item.representante_column === undefined || typeof item.representante_column === 'string') &&
+                   (item.eixo_column === undefined || typeof item.eixo_column === 'string');
         case 'proposals_sheets_config':
             return typeof item.id === 'string' &&
                    typeof item.proposals_sheet_url === 'string' &&
@@ -178,7 +181,10 @@ const App: React.FC = () => {
     const [currentEixoText, setCurrentEixoText] = useState(DEFAULT_CONFIG.eixo_texto);
     const [currentProposalTitle, setCurrentProposalTitle] = useState("Título da proposta");
 
-    const hasVoted = authenticatedUserCode ? votes.some(v => v.user_code === authenticatedUserCode) : false;
+    // Verificação aprimorada: o usuário já votou NESTA proposta?
+    const hasVoted = authenticatedUserCode && currentProposal 
+        ? votes.some(v => v.user_code === authenticatedUserCode && v.proposta_id === currentProposal.id) 
+        : false;
 
     const onDataChanged = useCallback((data: AppData[]) => {
         try {
@@ -297,7 +303,8 @@ const App: React.FC = () => {
     }
 
     const handleVote = async (voteOption: 'SIM' | 'NÃO' | 'ABSTENÇÃO') => {
-        if (!isUserAuthenticated || !authenticatedUserCode || hasVoted || votingStatus !== VotingStatus.STARTED) return;
+        // Verificação de segurança adicional para garantir que a proposta atual existe
+        if (!isUserAuthenticated || !authenticatedUserCode || hasVoted || votingStatus !== VotingStatus.STARTED || !currentProposal) return;
 
         const userHash = localStorage.getItem('voting_user_hash') || `user_${Math.random().toString(36).substr(2, 9)}`;
         localStorage.setItem('voting_user_hash', userHash);
@@ -309,16 +316,20 @@ const App: React.FC = () => {
             timestamp: new Date().toISOString(),
             ip_hash: userHash,
             user_code: authenticatedUserCode,
-            proposta_id: currentProposal?.id || 'unknown'
+            proposta_id: currentProposal.id 
         };
         await dataSdk.create(voteData);
     };
 
     const saveVotingResults = async () => {
         if (!currentProposal) return;
-        const simVotes = votes.filter(v => v.voto === 'SIM').length;
-        const naoVotes = votes.filter(v => v.voto === 'NÃO').length;
-        const abstencaoVotes = votes.filter(v => v.voto === 'ABSTENÇÃO').length;
+        
+        // Filtra os votos apenas da proposta atual
+        const currentProposalVotes = votes.filter(v => v.proposta_id === currentProposal.id);
+
+        const simVotes = currentProposalVotes.filter(v => v.voto === 'SIM').length;
+        const naoVotes = currentProposalVotes.filter(v => v.voto === 'NÃO').length;
+        const abstencaoVotes = currentProposalVotes.filter(v => v.voto === 'ABSTENÇÃO').length;
 
         let resultadoFinal: ProposalResult = ProposalResult.EMPATE;
         if (simVotes > naoVotes) {
@@ -334,13 +345,47 @@ const App: React.FC = () => {
             votos_sim: simVotes,
             votos_nao: naoVotes,
             votos_abstencao: abstencaoVotes,
-            total_votos: votes.length,
+            total_votos: currentProposalVotes.length,
             data_votacao: new Date().toISOString(),
             resultado_final: resultadoFinal,
             status: ProposalStatus.VOTADA,
             voting_duration_seconds: durationInSeconds,
         };
         await dataSdk.update(updatedProposal);
+    };
+    
+    // Nova função para zerar a votação de uma proposta específica
+    const handleResetProposalVote = async (proposalId: string) => {
+        try {
+            // 1. Encontrar a proposta
+            const proposal = proposals.find(p => p.id === proposalId);
+            if (!proposal) return;
+
+            // 2. Remover todos os votos associados a esta proposta
+            // Como o dataSdk.deleteAll remove por tipo, precisamos de uma lógica para remover itens específicos
+            // Como o mock dataSdk não tem deleteByCondition, vamos iterar e deletar um a um
+            const proposalVotes = votes.filter(v => v.proposta_id === proposalId);
+            for (const vote of proposalVotes) {
+                await dataSdk.delete(vote);
+            }
+
+            // 3. Atualizar o status da proposta para PENDENTE e limpar resultados
+            const resetProposal: Proposal = {
+                ...proposal,
+                status: ProposalStatus.PENDENTE,
+                votos_sim: undefined,
+                votos_nao: undefined,
+                votos_abstencao: undefined,
+                total_votos: undefined,
+                resultado_final: undefined,
+                data_votacao: undefined,
+                voting_duration_seconds: undefined
+            };
+            await dataSdk.update(resetProposal);
+
+        } catch (e) {
+            console.error("Erro ao zerar votação da proposta", e);
+        }
     };
 
     const handleStartVoting = async () => {
@@ -366,7 +411,7 @@ const App: React.FC = () => {
     };
 
     const handleNewVoting = async () => {
-        await dataSdk.deleteAll('vote');
+        // REMOVIDO: await dataSdk.deleteAll('vote'); // Não deletamos mais todos os votos
         await dataSdk.create({
             id: `control_reset_${Date.now()}`,
             tipo: 'control',
@@ -400,7 +445,7 @@ const App: React.FC = () => {
                   title={DEFAULT_CONFIG.titulo_votacao} 
                   question={DEFAULT_CONFIG.pergunta_votacao}
                   status={votingStatus}
-                  totalVotes={votes.length}
+                  totalVotes={currentProposal ? votes.filter(v => v.proposta_id === currentProposal.id).length : 0}
                 />
 
                 {!isUserAuthenticated ? (
@@ -431,8 +476,8 @@ const App: React.FC = () => {
                           />
                         )}
                         
-                        {votingStatus === VotingStatus.CLOSED && (
-                            <ResultsSection votes={votes} />
+                        {votingStatus === VotingStatus.CLOSED && currentProposal && (
+                            <ResultsSection votes={votes.filter(v => v.proposta_id === currentProposal.id)} />
                         )}
                     </>
                 )}
@@ -463,6 +508,7 @@ const App: React.FC = () => {
                     onUpdateProposal={(proposal) => dataSdk.update(proposal)}
                     onDeleteProposal={(proposal) => dataSdk.delete(proposal)}
                     onSelectProposal={(proposalData) => dataSdk.create(proposalData)}
+                    onResetProposalVote={handleResetProposalVote}
                   />
                 )}
 

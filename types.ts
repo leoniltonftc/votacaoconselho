@@ -78,6 +78,9 @@ export interface SheetsConfig {
     sheet_name: string;
     username_column: string;
     password_column: string;
+    segmento_column?: string;
+    representante_column?: string;
+    eixo_column?: string;
     timestamp: string;
 }
 
