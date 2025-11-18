@@ -32,6 +32,12 @@ interface AdminPanelProps {
     onDeleteAdminUser: (user: AdminUser) => void;
 }
 
+declare global {
+    interface Window {
+        XLSX: any;
+    }
+}
+
 const AdminPanel: React.FC<AdminPanelProps> = (props) => {
     const [adminMessage, setAdminMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
@@ -40,11 +46,113 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         setTimeout(() => setAdminMessage(null), 5000);
     };
 
+    const handleExportFullData = () => {
+        if (typeof window.XLSX === 'undefined') {
+            alert("Erro: A biblioteca SheetJS (XLSX) não foi carregada. Verifique a conexão com a internet.");
+            return;
+        }
+        
+        try {
+            const wb = window.XLSX.utils.book_new();
+
+            // 1. Aba de Propostas
+            const proposalsData = props.proposals.map(p => ({
+                ID: p.id,
+                Titulo: p.titulo,
+                Eixo: p.categoria,
+                Abrangencia: p.abrangencia,
+                Regional: p.regional_saude,
+                Municipio: p.municipio,
+                Descricao: p.descricao,
+                Status: p.status || 'PENDENTE',
+                Resultado: p.resultado_final || '-',
+                Votos_Sim: p.votos_sim || 0,
+                Votos_Nao: p.votos_nao || 0,
+                Votos_Abstencao: p.votos_abstencao || 0,
+                Total_Votos: p.total_votos || 0,
+                Duracao_Segundos: p.voting_duration_seconds || 0,
+                Data_Criacao: p.data_criacao ? new Date(p.data_criacao).toLocaleString() : '',
+                Data_Votacao: p.data_votacao ? new Date(p.data_votacao).toLocaleString() : ''
+            }));
+            const wsProposals = window.XLSX.utils.json_to_sheet(proposalsData);
+            window.XLSX.utils.book_append_sheet(wb, wsProposals, "Propostas");
+
+            // 2. Aba de Votos Detalhados
+            const votesData = props.votes.map(v => ({
+                ID: v.id,
+                Proposta_ID: v.proposta_id,
+                Usuario_Hash: v.user_code, 
+                Voto: v.voto,
+                Data_Hora: v.timestamp ? new Date(v.timestamp).toLocaleString() : ''
+            }));
+            const wsVotes = window.XLSX.utils.json_to_sheet(votesData);
+            window.XLSX.utils.book_append_sheet(wb, wsVotes, "Votos Individuais");
+
+            // 3. Aba de Eleitores Cadastrados
+            const usersData = props.localUsers.map(u => ({
+                Usuario: u.username,
+                Senha: u.password,
+                Segmento: u.segmento || '',
+                Representante: u.representante || '',
+                Eixo: u.eixo || '',
+                Data_Cadastro: u.timestamp ? new Date(u.timestamp).toLocaleString() : ''
+            }));
+            const wsUsers = window.XLSX.utils.json_to_sheet(usersData);
+            window.XLSX.utils.book_append_sheet(wb, wsUsers, "Eleitores");
+
+            // 4. Aba de Administradores
+            const adminsData = props.adminUsers.map(a => ({
+                Usuario: a.username,
+                Senha: a.password,
+                Data_Cadastro: a.timestamp ? new Date(a.timestamp).toLocaleString() : ''
+            }));
+            const wsAdmins = window.XLSX.utils.json_to_sheet(adminsData);
+            window.XLSX.utils.book_append_sheet(wb, wsAdmins, "Administradores");
+
+            // 5. Aba de Configurações
+            const configData = [];
+            if (props.sheetsConfig) {
+                configData.push({
+                    Tipo: 'Autenticação Planilha',
+                    URL: props.sheetsConfig.google_sheet_url,
+                    Sheet_Name: props.sheetsConfig.sheet_name,
+                    Detalhes: `UserCol: ${props.sheetsConfig.username_column}, PassCol: ${props.sheetsConfig.password_column}`
+                });
+            }
+            if (props.proposalSheetsConfig) {
+                configData.push({
+                    Tipo: 'Importação Propostas',
+                    URL: props.proposalSheetsConfig.proposals_sheet_url,
+                    Sheet_Name: props.proposalSheetsConfig.proposals_sheet_name,
+                    Detalhes: `TituloCol: ${props.proposalSheetsConfig.titulo_column}, EixoCol: ${props.proposalSheetsConfig.eixo_column}`
+                });
+            }
+            const wsConfig = window.XLSX.utils.json_to_sheet(configData);
+            window.XLSX.utils.book_append_sheet(wb, wsConfig, "Configurações");
+
+            // Gerar arquivo
+            window.XLSX.writeFile(wb, `Backup_Sistema_Votacao_${new Date().toISOString().slice(0,10)}.xlsx`);
+            showAdminMessage('success', 'Backup completo (Excel) gerado com sucesso!');
+
+        } catch (e) {
+            console.error(e);
+            showAdminMessage('error', 'Erro ao gerar arquivo Excel.');
+        }
+    };
+
     return (
         <section className="admin-panel-section bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 mb-4 sm:mb-6 lg:mb-8 mx-1 sm:mx-2">
-            <div className="flex justify-between items-center mb-6 no-print">
+            <div className="flex flex-col sm:flex-row justify-between items-center mb-6 no-print gap-4">
                 <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">🔧 Painel Administrativo</h2>
-                <button onClick={props.onClose} className="text-red-600 hover:text-red-800 text-sm underline">Fechar Painel</button>
+                <div className="flex gap-4 items-center">
+                    <button 
+                        onClick={handleExportFullData} 
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
+                    >
+                        📂 Backup Completo (Excel)
+                    </button>
+                    <button onClick={props.onClose} className="text-red-600 hover:text-red-800 text-sm underline">Fechar Painel</button>
+                </div>
             </div>
 
             <VotingControl
