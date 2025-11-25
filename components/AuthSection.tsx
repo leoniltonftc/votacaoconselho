@@ -1,10 +1,10 @@
 
+
 import React, { useState } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { SheetsConfig, LocalUser } from '../types';
 
 interface AuthSectionProps {
-    onAuthenticate: (code: string) => void;
+    onAuthenticate: (code: string, userEixo: string | null) => void;
     sheetsConfig: SheetsConfig | null;
     localUsers: LocalUser[];
 }
@@ -81,15 +81,22 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
         
         const usernameColIndex = sheetsConfig.username_column.toUpperCase().charCodeAt(0) - 65;
         const passwordColIndex = sheetsConfig.password_column.toUpperCase().charCodeAt(0) - 65;
+        
+        let eixoColIndex = -1;
+        if (sheetsConfig.eixo_column) {
+            eixoColIndex = sheetsConfig.eixo_column.toUpperCase().charCodeAt(0) - 65;
+        }
 
         for (const line of dataLines) {
             const values = parseCsvLine(line);
             const sheetPassword = values[passwordColIndex];
             if (sheetPassword === pass) {
-                return { success: true, auxiliaryData: values[usernameColIndex] || 'Usuário Autenticado' };
+                const username = values[usernameColIndex] || 'Usuário Autenticado';
+                const userEixo = (eixoColIndex >= 0 && values[eixoColIndex]) ? values[eixoColIndex] : null;
+                return { success: true, username, userEixo };
             }
         }
-        return { success: false, auxiliaryData: null };
+        return { success: false, username: null, userEixo: null };
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -103,7 +110,7 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
             // 1. Verificar usuários locais primeiro (prioridade)
             const localUser = localUsers.find(u => u.password === trimmedPassword);
             if (localUser) {
-                onAuthenticate(localUser.username);
+                onAuthenticate(localUser.username, localUser.eixo || null);
                 setIsLoading(false);
                 return;
             }
@@ -112,7 +119,7 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
             if (sheetsConfig) {
                 const authResult = await authenticateWithGoogleSheets(trimmedPassword);
                 if (authResult.success) {
-                    onAuthenticate(authResult.auxiliaryData!);
+                    onAuthenticate(authResult.username!, authResult.userEixo || null);
                 } else {
                     setError("Código inválido. Verifique seu código e tente novamente.");
                 }

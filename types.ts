@@ -43,6 +43,7 @@ export interface Proposal {
     data_votacao?: string | null;
     resultado_final?: ProposalResult | null;
     voting_duration_seconds?: number;
+    is_plenary?: boolean;
 }
 
 export enum VotingStatus {
@@ -53,6 +54,11 @@ export enum VotingStatus {
     NEW_VOTING_CREATED = 'new_voting_created'
 }
 
+export enum SystemPhase {
+    EIXOS = 'EIXOS',
+    PLENARIA = 'PLENARIA'
+}
+
 export interface ControlRecord {
     id: string;
     tipo: 'control';
@@ -60,6 +66,7 @@ export interface ControlRecord {
     start_time?: string;
     end_time?: string;
     timestamp: string;
+    system_phase?: SystemPhase;
 }
 
 export interface CurrentProposalRecord {
@@ -110,11 +117,19 @@ export interface LocalUser {
     timestamp: string;
 }
 
+export interface AdminPermissions {
+    can_manage_voting: boolean;
+    can_manage_proposals: boolean;
+    can_manage_users: boolean;
+    can_manage_config: boolean;
+}
+
 export interface AdminUser {
     id: string;
     tipo: 'admin_user';
     username: string;
     password: string;
+    permissions?: AdminPermissions;
     timestamp: string;
 }
 

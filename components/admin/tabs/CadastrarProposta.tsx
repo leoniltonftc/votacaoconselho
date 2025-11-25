@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Proposal, ProposalSheetsConfig, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
@@ -8,6 +9,7 @@ interface CadastrarPropostaProps {
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
     proposalSheetsConfig: ProposalSheetsConfig | null;
     onSaveProposalSheetsConfig: (config: ProposalSheetsConfig) => void;
+    defaultEixo?: string; // Novo prop para preencher o eixo
 }
 interface LoadedProposal {
   titulo: string;
@@ -54,9 +56,9 @@ const parseCsvLine = (line: string): string[] => {
 }
 
 
-const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCreateProposal, showAdminMessage, proposalSheetsConfig, onSaveProposalSheetsConfig }) => {
+const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCreateProposal, showAdminMessage, proposalSheetsConfig, onSaveProposalSheetsConfig, defaultEixo }) => {
     const [titulo, setTitulo] = useState('');
-    const [categoria, setCategoria] = useState('');
+    const [categoria, setCategoria] = useState(defaultEixo || '');
     const [abrangencia, setAbrangencia] = useState('');
     const [regionalSaude, setRegionalSaude] = useState('');
     const [municipio, setMunicipio] = useState('');
@@ -86,6 +88,13 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
         }
     }, [proposalSheetsConfig]);
 
+    // Atualiza categoria se defaultEixo mudar
+    useEffect(() => {
+        if (defaultEixo) {
+            setCategoria(defaultEixo);
+        }
+    }, [defaultEixo]);
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!titulo || !categoria || !abrangencia || !regionalSaude || !municipio || !descricao) {
@@ -108,7 +117,8 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
         onCreateProposal(newProposal);
         showAdminMessage('success', 'Proposta cadastrada com sucesso!');
         setTitulo('');
-        setCategoria('');
+        // Se tiver defaultEixo, mantém ele, senão limpa
+        setCategoria(defaultEixo || '');
         setAbrangencia('');
         setRegionalSaude('');
         setMunicipio('');
@@ -218,8 +228,14 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
             if (proposal) {
                 setTitulo(proposal.titulo);
                 
+                // Se já estivermos num contexto de Eixo fixo, ignora o da planilha ou avisa?
+                // Melhor usar o da planilha se estiver preenchido, senão usa o default
                 const matchingEixo = EIXOS.find(eixo => eixo.toLowerCase() === proposal.eixo.toLowerCase());
-                setCategoria(matchingEixo || '');
+                
+                if (defaultEixo && matchingEixo && defaultEixo !== matchingEixo) {
+                    showAdminMessage('error', `Atenção: A proposta carregada é do ${matchingEixo}, mas você está na aba ${defaultEixo}.`);
+                }
+                setCategoria(matchingEixo || defaultEixo || '');
 
                 const matchingAbrangencia = ABRANGENCIAS.find(abr => abr.toLowerCase() === proposal.abrangencia.toLowerCase());
                 setAbrangencia(matchingAbrangencia || '');
@@ -231,7 +247,7 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
             }
         } else {
             setTitulo('');
-            setCategoria('');
+            setCategoria(defaultEixo || '');
             setAbrangencia('');
             setRegionalSaude('');
             setMunicipio('');
@@ -305,6 +321,8 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
                                     <option value="">Escolha uma proposta para preencher automaticamente</option>
                                     {loadedProposals.map((p, index) => {
                                         if (!registeredProposalTitles.has(p.titulo)) {
+                                            // Opcional: Filtrar dropdown se estivermos numa aba de eixo específica
+                                            // if (defaultEixo && p.eixo !== defaultEixo) return null; 
                                             return <option key={index} value={index}>{p.titulo}</option>;
                                         }
                                         return null;
@@ -329,7 +347,13 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">Eixo:</label>
-                        <select value={categoria} onChange={e => setCategoria(e.target.value)} className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" required>
+                        <select 
+                            value={categoria} 
+                            onChange={e => setCategoria(e.target.value)} 
+                            className="w-full px-4 py-3 text-base border border-gray-300 rounded-lg" 
+                            required
+                            disabled={!!defaultEixo} // Desabilita se estiver fixo pela aba
+                        >
                             <option value="">Selecione um eixo</option>
                             {EIXOS.map(eixo => <option key={eixo} value={eixo}>{eixo}</option>)}
                         </select>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Proposal, CurrentProposalRecord, ProposalStatus, ProposalResult } from '../../../types';
+import { Proposal, CurrentProposalRecord, ProposalStatus, ProposalResult, SystemPhase } from '../../../types';
 
 // Since jspdf and jspdf-autotable are loaded from a CDN, we need to tell TypeScript they exist on the window object.
 declare global {
@@ -15,11 +15,26 @@ interface SelecionarPropostaProps {
     onSelectProposal: (proposalData: CurrentProposalRecord) => void;
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
     onResetProposalVote: (proposalId: string) => void;
+    systemPhase?: SystemPhase;
+    filterEixo?: string;
 }
 
-const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, currentProposalId, onSelectProposal, showAdminMessage, onResetProposalVote }) => {
+const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, currentProposalId, onSelectProposal, showAdminMessage, onResetProposalVote, systemPhase, filterEixo }) => {
 
-    const sortedProposals = [...proposals].sort((a, b) => {
+    // Filtra propostas baseado na fase E no eixo selecionado (aba)
+    const visibleProposals = proposals.filter(p => {
+        // Filtro de Fase
+        if (systemPhase === SystemPhase.PLENARIA) {
+            if (p.is_plenary !== true) return false;
+        }
+        // Filtro de Aba de Eixo (se não for ALL)
+        if (filterEixo && p.categoria !== filterEixo) {
+            return false;
+        }
+        return true;
+    });
+
+    const sortedProposals = [...visibleProposals].sort((a, b) => {
         // Propostas EM_VOTACAO primeiro
         if (a.status === ProposalStatus.EM_VOTACAO && b.status !== ProposalStatus.EM_VOTACAO) return -1;
         if (a.status !== ProposalStatus.EM_VOTACAO && b.status === ProposalStatus.EM_VOTACAO) return 1;
@@ -81,7 +96,11 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
             }
 
             doc.setFontSize(18);
-            doc.text("Propostas Disponíveis para Votação", 14, 22);
+            let title = "Propostas Disponíveis para Votação";
+            if (systemPhase === SystemPhase.PLENARIA) title = "Propostas Qualificadas para Plenária Final";
+            if (filterEixo) title += ` - ${filterEixo}`;
+            
+            doc.text(title, 14, 22);
             doc.setFontSize(11);
             doc.setTextColor(100);
             doc.text(`Relatório gerado em: ${new Date().toLocaleString()}`, 14, 30);
@@ -145,8 +164,21 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
     return (
         <div className="printable-section">
             <div className="mb-4">
-                <h4 className="text-md font-semibold text-gray-700 mb-2">Selecionar Proposta para Votação</h4>
-                <p className="text-sm text-gray-600">Escolha uma proposta para a votação atual.</p>
+                <h4 className="text-md font-semibold text-gray-700 mb-2">
+                    {systemPhase === SystemPhase.PLENARIA 
+                        ? "🏛️ Selecionar Proposta para Plenária Final" 
+                        : "🗳️ Selecionar Proposta para Votação de Eixos"}
+                </h4>
+                <p className="text-sm text-gray-600">
+                    {systemPhase === SystemPhase.PLENARIA
+                        ? "Apenas propostas promovidas aparecem aqui."
+                        : "Todas as propostas cadastradas estão disponíveis."}
+                </p>
+                {filterEixo && (
+                    <span className="inline-block mt-2 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-xs font-bold">
+                        Filtrado por: {filterEixo}
+                    </span>
+                )}
             </div>
 
             <div className="no-print bg-gray-100 rounded-lg p-3 mb-4 flex flex-wrap gap-3">
@@ -171,11 +203,17 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
                     <div key={proposta.id} className={`bg-white border rounded-lg p-4 printable-proposal transition-all ${isSelected ? 'border-2 border-blue-600 bg-blue-50 shadow-lg transform scale-[1.01]' : 'border-gray-200'}`}>
                         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
                             <div className="flex-1 w-full">
-                                <h5 className="font-semibold text-gray-800 flex items-center gap-2">
-                                    {String(proposta.titulo || '')} 
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h5 className="font-semibold text-gray-800">
+                                        {String(proposta.titulo || '')} 
+                                    </h5>
                                     {proposta.status === ProposalStatus.EM_VOTACAO && <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded-full animate-pulse">Em Votação</span>}
-                                </h5>
-                                <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
+                                    {proposta.is_plenary && <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full border border-purple-200">Qualificada Plenária</span>}
+                                </div>
+                                <div className="flex gap-2">
+                                    <span className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{String(proposta.categoria || '')}</span>
+                                    <span className="text-xs text-gray-500">{String(proposta.abrangencia || '')}</span>
+                                </div>
                                 <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
                                 {proposta.status === ProposalStatus.VOTADA && (
                                     <div className="mt-3 pt-2 border-t border-gray-100 text-xs w-full">
@@ -242,7 +280,8 @@ const SelecionarProposta: React.FC<SelecionarPropostaProps> = ({ proposals, curr
                  )}) : (
                      <div className="text-center text-gray-500 py-8">
                          <span className="text-2xl">🎯</span>
-                         <p>Nenhuma proposta disponível para seleção.</p>
+                         <p>Nenhuma proposta encontrada para este Eixo/Fase.</p>
+                         {systemPhase === SystemPhase.PLENARIA && <p className="text-sm text-gray-400 mt-2">Vá em "Relatórios" para promover propostas.</p>}
                      </div>
                  )}
             </div>

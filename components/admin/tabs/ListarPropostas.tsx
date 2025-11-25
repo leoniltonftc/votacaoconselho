@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Proposal, ProposalResult, ProposalStatus } from '../../../types';
 import { EIXOS, ABRANGENCIAS } from '../../../constants';
 import EditProposalModal from '../../modals/EditProposalModal';
@@ -18,14 +18,24 @@ interface ListarPropostasProps {
     onDeleteProposal: (proposal: Proposal) => void;
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
     onResetProposalVote: (proposalId: string) => void;
+    filterEixo?: string; // Prop opcional para filtrar por eixo vindo do pai
 }
 
-const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdateProposal, onDeleteProposal, showAdminMessage, onResetProposalVote }) => {
-    const [filtroCategoria, setFiltroCategoria] = useState('');
+const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdateProposal, onDeleteProposal, showAdminMessage, onResetProposalVote, filterEixo }) => {
+    const [filtroCategoria, setFiltroCategoria] = useState(filterEixo || '');
     const [filtroAbrangencia, setFiltroAbrangencia] = useState('');
     const [filtroRegional, setFiltroRegional] = useState('');
     const [filtroMunicipio, setFiltroMunicipio] = useState('');
     const [editingProposal, setEditingProposal] = useState<Proposal | null>(null);
+
+    // Atualiza o filtro interno se a prop mudar
+    useEffect(() => {
+        if (filterEixo) {
+            setFiltroCategoria(filterEixo);
+        } else {
+            setFiltroCategoria('');
+        }
+    }, [filterEixo]);
 
     const { regionais, municipios, filteredProposals } = useMemo(() => {
         try {
@@ -45,8 +55,11 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                     .filter(Boolean)
             )].sort((a: string, b: string) => a.localeCompare(b));
             
+            // Se filterEixo for passado, força o filtro. Senão usa o estado local.
+            const activeEixoFilter = filterEixo || filtroCategoria;
+
             const filtered = safeProposals
-                .filter(p => !filtroCategoria || p.categoria === filtroCategoria)
+                .filter(p => !activeEixoFilter || p.categoria === activeEixoFilter)
                 .filter(p => !filtroAbrangencia || p.abrangencia === filtroAbrangencia)
                 .filter(p => !filtroRegional || String(p.regional_saude || '').split(',').map(item => item.trim()).includes(filtroRegional))
                 .filter(p => !filtroMunicipio || String(p.municipio || '').split(',').map(item => item.trim()).includes(filtroMunicipio))
@@ -69,7 +82,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                 filteredProposals: []
             };
         }
-    }, [proposals, filtroCategoria, filtroAbrangencia, filtroRegional, filtroMunicipio]);
+    }, [proposals, filtroCategoria, filtroAbrangencia, filtroRegional, filtroMunicipio, filterEixo]);
 
     const formatDuration = (totalSeconds: number | undefined): string => {
         if (totalSeconds === undefined || totalSeconds < 0) return 'N/A';
@@ -206,20 +219,18 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
 
     return (
         <div className="printable-section">
-            <div className="mb-4">
-                <h4 className="text-md font-semibold text-gray-700 mb-2">Propostas Cadastradas ({filteredProposals.length})</h4>
-                <p className="text-sm text-gray-600">Visualize, edite ou exclua as propostas do sistema.</p>
-            </div>
-
             <div className="no-print mb-4 p-4 bg-gray-100 rounded-lg space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Eixo:</label>
-                        <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
-                            <option value="">Todos os eixos</option>
-                            {EIXOS.map(eixo => <option key={eixo} value={eixo}>{eixo}</option>)}
-                        </select>
-                    </div>
+                    {/* Oculta filtro de Eixo se um eixo específico já estiver selecionado no pai */}
+                    {!filterEixo && (
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Eixo:</label>
+                            <select value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
+                                <option value="">Todos os eixos</option>
+                                {EIXOS.map(eixo => <option key={eixo} value={eixo}>{eixo}</option>)}
+                            </select>
+                        </div>
+                    )}
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Filtrar por Abrangência:</label>
                         <select value={filtroAbrangencia} onChange={e => setFiltroAbrangencia(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -258,11 +269,16 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                     <div key={proposta.id} className={`bg-white border rounded-lg p-4 printable-proposal ${proposta.status === ProposalStatus.EM_VOTACAO ? 'border-blue-300 shadow-md bg-blue-50' : 'border-gray-200'}`}>
                         <div className="flex flex-col sm:flex-row sm:justify-between">
                              <div className="flex-1 mb-3 sm:mb-0">
-                                <span className={`text-xs font-bold p-1 px-2 rounded-full ${getStatusBadgeClass(proposta.status)}`}>
-                                    {String(proposta.status || ProposalStatus.PENDENTE)}
-                                </span>
-                                <h5 className="font-semibold text-gray-800 mt-2">{String(proposta.titulo || '')}</h5>
-                                <p className="text-sm text-gray-600">{String(proposta.categoria || '')} • {String(proposta.abrangencia || '')}</p>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className={`text-xs font-bold p-1 px-2 rounded-full ${getStatusBadgeClass(proposta.status)}`}>
+                                        {String(proposta.status || ProposalStatus.PENDENTE)}
+                                    </span>
+                                    <span className="text-xs font-semibold bg-gray-200 text-gray-700 px-2 py-1 rounded-full">
+                                        {String(proposta.categoria || '')}
+                                    </span>
+                                </div>
+                                <h5 className="font-semibold text-gray-800">{String(proposta.titulo || '')}</h5>
+                                <p className="text-sm text-gray-600 mt-1">{String(proposta.abrangencia || '')}</p>
                                 <p className="text-xs text-gray-500 mt-1">{String(proposta.regional_saude || '')} • {String(proposta.municipio || '')}</p>
                                 <p className="text-sm text-gray-600 mt-2 line-clamp-3">{String(proposta.descricao || '')}</p>
                             </div>
@@ -292,7 +308,7 @@ const ListarPropostas: React.FC<ListarPropostasProps> = ({ proposals, onUpdatePr
                  )) : (
                      <div className="text-center text-gray-500 py-8">
                          <span className="text-2xl">📋</span>
-                         <p>Nenhuma proposta encontrada com os filtros selecionados.</p>
+                         <p>Nenhuma proposta encontrada neste eixo/filtro.</p>
                      </div>
                  )}
             </div>

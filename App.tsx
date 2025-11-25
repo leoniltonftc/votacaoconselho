@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser, AdminUser } from './types';
+import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser, AdminUser, SystemPhase, AdminPermissions } from './types';
 import Header from './components/Header';
 import AuthSection from './components/AuthSection';
 import TimerSection from './components/TimerSection';
@@ -64,7 +63,8 @@ const isValidAppData = (item: any): item is AppData => {
         case 'admin_user':
             return typeof item.id === 'string' &&
                    typeof item.username === 'string' &&
-                   typeof item.password === 'string';
+                   typeof item.password === 'string' &&
+                   (item.permissions === undefined || typeof item.permissions === 'object');
         default:
             return false;
     }
@@ -104,8 +104,6 @@ const dataSdk = {
         this._onDataChanged(cleanData);
     } catch (e) {
         console.error("Erro ao carregar dados:", e);
-        // Não limpa automaticamente para evitar perda de dados em condições de corrida, 
-        // a menos que seja crítico.
     }
   },
 
@@ -124,10 +122,7 @@ const dataSdk = {
   _saveData: function(data: AppData[]) {
     try {
       localStorage.setItem('voting_app_data', JSON.stringify(data));
-      // Dispara evento para notificar a própria aba se necessário, mas o storage event 
-      // nativo só funciona para OUTRAS abas. Então chamamos notify manualmente.
       this._onDataChanged(data); 
-      // Dispara evento customizado para forçar atualização se necessário
       window.dispatchEvent(new Event('local-storage-update'));
     } catch (e) {
       console.error("Falha ao salvar dados", e);
@@ -190,7 +185,9 @@ const App: React.FC = () => {
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(() => !sessionStorage.getItem('welcomeScreenShown'));
     const [isUserAuthenticated, setIsUserAuthenticated] = useState(false);
     const [authenticatedUserCode, setAuthenticatedUserCode] = useState<string | null>(null);
+    const [authenticatedUserEixo, setAuthenticatedUserEixo] = useState<string | null>(null);
     const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+    const [currentAdminPermissions, setCurrentAdminPermissions] = useState<AdminPermissions | null>(null); 
     const [isAuthLoading, setIsAuthLoading] = useState(true);
 
     const [votes, setVotes] = useState<Vote[]>([]);
@@ -199,20 +196,34 @@ const App: React.FC = () => {
     const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
     const [proposalSheetsConfig, setProposalSheetsConfig] = useState<ProposalSheetsConfig | null>(null);
     const [localUsers, setLocalUsers] = useState<LocalUser[]>([]);
-    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]); // Estado para usuários administrativos
+    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]); 
     const [votingStatus, setVotingStatus] = useState<VotingStatus>(VotingStatus.NOT_STARTED);
     const [votingStartTime, setVotingStartTime] = useState<Date | null>(null);
     const [votingEndTime, setVotingEndTime] = useState<Date | null>(null);
+    
+    const [systemPhase, setSystemPhase] = useState<SystemPhase>(SystemPhase.EIXOS);
 
     const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
     const [currentProposalText, setCurrentProposalText] = useState(DEFAULT_CONFIG.proposta_texto);
     const [currentEixoText, setCurrentEixoText] = useState(DEFAULT_CONFIG.eixo_texto);
     const [currentProposalTitle, setCurrentProposalTitle] = useState("Título da proposta");
 
-    // Verificação aprimorada: o usuário já votou NESTA proposta?
     const hasVoted = authenticatedUserCode && currentProposal 
         ? votes.some(v => v.user_code === authenticatedUserCode && v.proposta_id === currentProposal.id) 
         : false;
+
+    const canVoteInCurrentEixo = useCallback(() => {
+        // Se for plenária final, libera geral
+        if (systemPhase === SystemPhase.PLENARIA) return true;
+        
+        // Se não houver proposta ou usuário não tiver eixo, bloqueia
+        if (!currentProposal || !authenticatedUserEixo) return false; 
+        
+        const propEixo = currentProposal.categoria.trim().toLowerCase();
+        const userEixo = authenticatedUserEixo.trim().toLowerCase();
+        
+        return propEixo === userEixo;
+    }, [systemPhase, currentProposal, authenticatedUserEixo]);
 
     const onDataChanged = useCallback((data: AppData[]) => {
         try {
@@ -231,11 +242,15 @@ const App: React.FC = () => {
             const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
             if (controlRecords.length > 0) {
                 const latestControl = controlRecords.sort((a, b) => safeGetTime(b?.timestamp) - safeGetTime(a?.timestamp))[0];
+                
+                if (latestControl.system_phase) {
+                    setSystemPhase(latestControl.system_phase);
+                }
+
                 if (latestControl.status === 'reset' || latestControl.status === 'new_voting_created') {
                     setVotingStatus(VotingStatus.NOT_STARTED);
                     setVotingStartTime(null);
                     setVotingEndTime(null);
-                    // Não removemos o hash aqui para não invalidar a sessão do usuário, apenas o estado da votação
                 } else {
                     setVotingStatus((latestControl.status as VotingStatus) || VotingStatus.NOT_STARTED);
                     setVotingStartTime(latestControl.start_time ? new Date(latestControl.start_time) : null);
@@ -243,6 +258,7 @@ const App: React.FC = () => {
                 }
             } else {
                 setVotingStatus(VotingStatus.NOT_STARTED);
+                setSystemPhase(SystemPhase.EIXOS); 
             }
 
             const proposalRecords = data.filter(item => item.tipo === 'proposal') as CurrentProposalRecord[];
@@ -274,7 +290,6 @@ const App: React.FC = () => {
             }
         } catch (error) {
             console.error("A critical error occurred while processing data.", error);
-            // Evitamos limpar tudo automaticamente em caso de erro de processamento para não perder dados por bugs de UI
         }
     }, []);
 
@@ -282,20 +297,29 @@ const App: React.FC = () => {
         dataSdk.init({ onDataChanged });
 
         const storedUserCode = localStorage.getItem('authenticated_user_code');
+        const storedUserEixo = localStorage.getItem('authenticated_user_eixo');
         if (storedUserCode) {
             setIsUserAuthenticated(true);
             setAuthenticatedUserCode(storedUserCode);
+            if (storedUserEixo) setAuthenticatedUserEixo(storedUserEixo);
         }
 
         const wasAdminAuth = localStorage.getItem('admin_authenticated') === 'true';
         const authTimestamp = localStorage.getItem('admin_auth_timestamp');
+        
+        // Restore Admin Permissions if session is valid
         if(wasAdminAuth && authTimestamp) {
             const oneHour = 60 * 60 * 1000;
             if (Date.now() - parseInt(authTimestamp, 10) < oneHour) {
                 setIsAdminAuthenticated(true);
+                const savedPermissions = localStorage.getItem('admin_permissions');
+                if (savedPermissions) {
+                    setCurrentAdminPermissions(JSON.parse(savedPermissions));
+                }
             } else {
                 localStorage.removeItem('admin_authenticated');
                 localStorage.removeItem('admin_auth_timestamp');
+                localStorage.removeItem('admin_permissions');
             }
         }
         setIsAuthLoading(false);
@@ -306,52 +330,81 @@ const App: React.FC = () => {
         setShowWelcomeScreen(false);
     };
 
-    const handleAuthenticate = (code: string) => {
+    const handleAuthenticate = (code: string, userEixo: string | null) => {
         setIsUserAuthenticated(true);
         setAuthenticatedUserCode(code);
+        setAuthenticatedUserEixo(userEixo);
         localStorage.setItem('authenticated_user_code', code);
+        if (userEixo) {
+            localStorage.setItem('authenticated_user_eixo', userEixo);
+        }
     };
 
     const handleLogout = () => {
         setIsUserAuthenticated(false);
         setAuthenticatedUserCode(null);
+        setAuthenticatedUserEixo(null);
         localStorage.removeItem('authenticated_user_code');
+        localStorage.removeItem('authenticated_user_eixo');
         localStorage.removeItem('voting_user_hash');
     };
 
     const handleAdminAuthenticate = (username: string, password: string) => {
-        // 1. Verifica a senha padrão (Master Password)
+        // 1. Master Password (Super Admin - All permissions)
         if (password === ADMIN_PASSWORD) {
+            const superPermissions: AdminPermissions = {
+                can_manage_voting: true,
+                can_manage_proposals: true,
+                can_manage_users: true,
+                can_manage_config: true
+            };
             setIsAdminAuthenticated(true);
+            setCurrentAdminPermissions(superPermissions);
             localStorage.setItem('admin_authenticated', 'true');
             localStorage.setItem('admin_auth_timestamp', Date.now().toString());
+            localStorage.setItem('admin_permissions', JSON.stringify(superPermissions));
             setIsAdminModalOpen(false);
             return true;
         }
-
-        // 2. Verifica usuários administrativos cadastrados
+        // 2. Registered Admin User
         if (username) {
             const adminUser = adminUsers.find(u => u.username === username && u.password === password);
             if (adminUser) {
                 setIsAdminAuthenticated(true);
+                // Default permissions to all true for old records, or use stored permissions
+                const permissions = adminUser.permissions || {
+                    can_manage_voting: true,
+                    can_manage_proposals: true,
+                    can_manage_users: true,
+                    can_manage_config: true
+                };
+                setCurrentAdminPermissions(permissions);
                 localStorage.setItem('admin_authenticated', 'true');
                 localStorage.setItem('admin_auth_timestamp', Date.now().toString());
+                localStorage.setItem('admin_permissions', JSON.stringify(permissions));
                 setIsAdminModalOpen(false);
                 return true;
             }
         }
-
         return false;
     };
     
     const handleCloseAdminPanel = () => {
         setIsAdminAuthenticated(false);
+        setCurrentAdminPermissions(null);
         localStorage.removeItem('admin_authenticated');
         localStorage.removeItem('admin_auth_timestamp');
+        localStorage.removeItem('admin_permissions');
     }
 
     const handleVote = async (voteOption: 'SIM' | 'NÃO' | 'ABSTENÇÃO') => {
         if (!isUserAuthenticated || !authenticatedUserCode || hasVoted || votingStatus !== VotingStatus.STARTED || !currentProposal) return;
+
+        // CRITICAL CHECK: Ensure user belongs to the correct Axis before creating vote
+        if (!canVoteInCurrentEixo()) {
+            console.warn("Tentativa de voto bloqueada: Eixo do usuário não corresponde.");
+            return;
+        }
 
         const userHash = localStorage.getItem('voting_user_hash') || `user_${Math.random().toString(36).substr(2, 9)}`;
         localStorage.setItem('voting_user_hash', userHash);
@@ -402,11 +455,9 @@ const App: React.FC = () => {
     
     const handleResetProposalVote = async (proposalId: string) => {
         try {
-            // 1. Encontrar a proposta
             const proposal = proposals.find(p => p.id === proposalId);
             if (!proposal) return;
 
-            // 2. Remover todos os votos associados a esta proposta
             const proposalVotes = votes.filter(v => v.proposta_id === proposalId);
             const idsToDelete = proposalVotes.map(v => v.id);
             
@@ -414,7 +465,6 @@ const App: React.FC = () => {
                 await dataSdk.deleteMany(idsToDelete);
             }
 
-            // 3. Atualizar o status da proposta para PENDENTE e limpar resultados
             const resetProposal: Proposal = {
                 ...proposal,
                 status: ProposalStatus.PENDENTE,
@@ -434,7 +484,6 @@ const App: React.FC = () => {
     };
 
     const handleStartVoting = async () => {
-        // Atualiza o status da proposta atual para EM_VOTACAO
         if (currentProposal) {
             const updatedProposal: Proposal = {
                 ...currentProposal,
@@ -448,37 +497,50 @@ const App: React.FC = () => {
             tipo: 'control',
             status: VotingStatus.STARTED,
             start_time: new Date().toISOString(),
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            system_phase: systemPhase 
         } as ControlRecord);
     };
 
     const handleEndVoting = async () => {
-        await saveVotingResults(); // Isso já define o status como VOTADA
+        await saveVotingResults();
         await dataSdk.create({
             id: `control_${Date.now()}`,
             tipo: 'control',
             status: VotingStatus.CLOSED,
             start_time: votingStartTime?.toISOString(),
             end_time: new Date().toISOString(),
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            system_phase: systemPhase
         } as ControlRecord);
     };
 
     const handleNewVoting = async () => {
-        // NÃO deletamos os votos anteriores. O histórico é mantido.
-        // Apenas criamos um novo registro de controle para resetar o status da UI de votação
         await dataSdk.create({
             id: `control_reset_${Date.now()}`,
             tipo: 'control',
             status: 'reset',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            system_phase: systemPhase
         } as ControlRecord);
         
         await dataSdk.create({
             id: `control_new_${Date.now()}`,
             tipo: 'control',
             status: 'new_voting_created',
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            system_phase: systemPhase
+        } as ControlRecord);
+    };
+    
+    const handleChangePhase = async (newPhase: SystemPhase) => {
+        setSystemPhase(newPhase);
+        await dataSdk.create({
+            id: `control_phase_${Date.now()}`,
+            tipo: 'control',
+            status: VotingStatus.NOT_STARTED, 
+            timestamp: new Date().toISOString(),
+            system_phase: newPhase
         } as ControlRecord);
     };
     
@@ -499,7 +561,7 @@ const App: React.FC = () => {
             <div className="max-w-7xl mx-auto w-full">
                 <Header 
                   title={DEFAULT_CONFIG.titulo_votacao} 
-                  question={DEFAULT_CONFIG.pergunta_votacao}
+                  question={systemPhase === SystemPhase.PLENARIA ? "PLENÁRIA FINAL - Votação Geral" : `Votação por Eixos: ${authenticatedUserEixo || 'Indefinido'}`}
                   status={votingStatus}
                   totalVotes={(votingStatus === VotingStatus.STARTED || votingStatus === VotingStatus.CLOSED) && currentProposal ? votes.filter(v => v.proposta_id === currentProposal.id).length : 0}
                 />
@@ -529,6 +591,9 @@ const App: React.FC = () => {
                               hasVoted={hasVoted}
                               onVote={handleVote}
                               userCode={authenticatedUserCode}
+                              userEixo={authenticatedUserEixo}
+                              proposalEixo={currentProposal?.categoria}
+                              systemPhase={systemPhase}
                               onLogout={handleLogout}
                           />
                         )}
@@ -558,6 +623,9 @@ const App: React.FC = () => {
                     sheetsConfig={sheetsConfig}
                     proposalSheetsConfig={proposalSheetsConfig}
                     currentProposalId={currentProposal?.id}
+                    systemPhase={systemPhase}
+                    currentAdminPermissions={currentAdminPermissions} // Pass permissions
+                    onChangePhase={handleChangePhase} 
                     onStartVoting={handleStartVoting}
                     onEndVoting={handleEndVoting}
                     onNewVoting={handleNewVoting}

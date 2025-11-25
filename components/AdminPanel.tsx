@@ -1,6 +1,7 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser, AdminUser } from '../types';
+import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser, AdminUser, SystemPhase, AdminPermissions } from '../types';
 import ProposalManagement from './admin/ProposalManagement';
 import VotingControl from './admin/VotingControl';
 import SheetsAuthConfig from './admin/SheetsAuthConfig';
@@ -16,6 +17,9 @@ interface AdminPanelProps {
     sheetsConfig: SheetsConfig | null;
     proposalSheetsConfig: ProposalSheetsConfig | null;
     currentProposalId?: string;
+    systemPhase: SystemPhase;
+    currentAdminPermissions: AdminPermissions | null;
+    onChangePhase: (phase: SystemPhase) => void;
     onStartVoting: () => void;
     onEndVoting: () => void;
     onNewVoting: () => void;
@@ -156,10 +160,35 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         return props.votes.filter(v => v.proposta_id === props.currentProposalId);
     };
 
+    // Helper para verificar permissões
+    const hasPermission = (permission: keyof AdminPermissions) => {
+        if (!props.currentAdminPermissions) return false;
+        return props.currentAdminPermissions[permission];
+    };
+
     return (
         <section className="admin-panel-section bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 mb-4 sm:mb-6 lg:mb-8 mx-1 sm:mx-2">
             <div className="flex flex-col sm:flex-row justify-between items-center mb-6 no-print gap-4">
-                <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">🔧 Painel Administrativo</h2>
+                <div className="flex items-center gap-4">
+                    <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">🔧 Painel Administrativo</h2>
+                    
+                    {/* Switch de Fase do Sistema */}
+                    <div className="flex items-center bg-gray-100 p-1 rounded-lg">
+                        <button 
+                            onClick={() => props.onChangePhase(SystemPhase.EIXOS)}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${props.systemPhase === SystemPhase.EIXOS ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Eixos Temáticos
+                        </button>
+                        <button 
+                            onClick={() => props.onChangePhase(SystemPhase.PLENARIA)}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${props.systemPhase === SystemPhase.PLENARIA ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}
+                        >
+                            Plenária Final
+                        </button>
+                    </div>
+                </div>
+                
                 <div className="flex gap-4 items-center">
                     <button 
                         onClick={handleExportFullData} 
@@ -171,55 +200,66 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 </div>
             </div>
 
-            <VotingControl
-                votingStatus={props.votingStatus}
-                votes={getFilteredVotesForDisplay()} 
-                onStartVoting={props.onStartVoting}
-                onEndVoting={props.onEndVoting}
-                onNewVoting={props.onNewVoting}
-                showAdminMessage={showAdminMessage}
-            />
+            {hasPermission('can_manage_voting') && (
+                <VotingControl
+                    votingStatus={props.votingStatus}
+                    votes={getFilteredVotesForDisplay()} 
+                    onStartVoting={props.onStartVoting}
+                    onEndVoting={props.onEndVoting}
+                    onNewVoting={props.onNewVoting}
+                    showAdminMessage={showAdminMessage}
+                />
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Coluna da Esquerda: Configurações do Sistema e Admins */}
                 <div className="space-y-6">
-                    <SheetsAuthConfig
-                        sheetsConfig={props.sheetsConfig}
-                        onSaveSheetsConfig={props.onSaveSheetsConfig}
-                        showAdminMessage={showAdminMessage}
-                    />
-                    <AdminUserManagement 
-                        adminUsers={props.adminUsers}
-                        onCreateAdminUser={props.onCreateAdminUser}
-                        onDeleteAdminUser={props.onDeleteAdminUser}
-                        showAdminMessage={showAdminMessage}
-                    />
+                    {hasPermission('can_manage_config') && (
+                        <SheetsAuthConfig
+                            sheetsConfig={props.sheetsConfig}
+                            onSaveSheetsConfig={props.onSaveSheetsConfig}
+                            showAdminMessage={showAdminMessage}
+                        />
+                    )}
+                    {hasPermission('can_manage_users') && (
+                        <AdminUserManagement 
+                            adminUsers={props.adminUsers}
+                            onCreateAdminUser={props.onCreateAdminUser}
+                            onDeleteAdminUser={props.onDeleteAdminUser}
+                            showAdminMessage={showAdminMessage}
+                        />
+                    )}
                 </div>
 
                 {/* Coluna da Direita: Gerenciamento de Eleitores (Lista longa) */}
                 <div>
-                    <UserManagement 
-                        localUsers={props.localUsers}
-                        onCreateUser={props.onCreateUser}
-                        onDeleteUser={props.onDeleteUser}
-                        showAdminMessage={showAdminMessage}
-                    />
+                     {hasPermission('can_manage_users') && (
+                        <UserManagement 
+                            localUsers={props.localUsers}
+                            onCreateUser={props.onCreateUser}
+                            onDeleteUser={props.onDeleteUser}
+                            showAdminMessage={showAdminMessage}
+                        />
+                    )}
                 </div>
             </div>
             
-            <ProposalManagement
-                votes={props.votes}
-                proposals={props.proposals}
-                proposalSheetsConfig={props.proposalSheetsConfig}
-                currentProposalId={props.currentProposalId}
-                onSaveProposalSheetsConfig={props.onSaveProposalSheetsConfig}
-                onCreateProposal={props.onCreateProposal}
-                onUpdateProposal={props.onUpdateProposal}
-                onDeleteProposal={props.onDeleteProposal}
-                onSelectProposal={props.onSelectProposal}
-                showAdminMessage={showAdminMessage}
-                onResetProposalVote={props.onResetProposalVote}
-            />
+            {hasPermission('can_manage_proposals') && (
+                <ProposalManagement
+                    votes={props.votes}
+                    proposals={props.proposals}
+                    proposalSheetsConfig={props.proposalSheetsConfig}
+                    currentProposalId={props.currentProposalId}
+                    onSaveProposalSheetsConfig={props.onSaveProposalSheetsConfig}
+                    onCreateProposal={props.onCreateProposal}
+                    onUpdateProposal={props.onUpdateProposal}
+                    onDeleteProposal={props.onDeleteProposal}
+                    onSelectProposal={props.onSelectProposal}
+                    showAdminMessage={showAdminMessage}
+                    onResetProposalVote={props.onResetProposalVote}
+                    systemPhase={props.systemPhase}
+                />
+            )}
 
             {adminMessage && (
                 <div className={`mt-4 p-4 rounded-lg text-center ${adminMessage.type === 'success' ? 'bg-green-100 border border-green-400 text-green-700' : 'bg-red-100 border border-red-400 text-red-700'}`}>
