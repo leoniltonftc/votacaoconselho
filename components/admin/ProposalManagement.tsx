@@ -1,6 +1,7 @@
 
+
 import React, { useState } from 'react';
-import { Proposal, Vote, CurrentProposalRecord, ProposalSheetsConfig, SystemPhase } from '../../types';
+import { Proposal, Vote, CurrentProposalRecord, ProposalSheetsConfig, SystemPhase, ClassificationRule } from '../../types';
 import CadastrarProposta from './tabs/CadastrarProposta';
 import ListarPropostas from './tabs/ListarPropostas';
 import SelecionarProposta from './tabs/SelecionarProposta';
@@ -14,6 +15,7 @@ interface ProposalManagementProps {
     proposalSheetsConfig: ProposalSheetsConfig | null;
     currentProposalId?: string;
     systemPhase: SystemPhase;
+    classificationRules: ClassificationRule[];
     showAdminMessage: (type: 'success' | 'error', text: string) => void;
     onSaveProposalSheetsConfig: (config: ProposalSheetsConfig) => void;
     onCreateProposal: (proposal: Proposal) => void;
@@ -21,6 +23,8 @@ interface ProposalManagementProps {
     onDeleteProposal: (proposal: Proposal) => void;
     onSelectProposal: (proposalData: CurrentProposalRecord) => void;
     onResetProposalVote: (proposalId: string) => void;
+    onSaveClassificationRule: (rule: ClassificationRule) => void;
+    onDeleteClassificationRule: (rule: ClassificationRule) => void;
 }
 
 type ActiveTab = 'cadastrar' | 'listar' | 'selecionar' | 'acompanhamento' | 'votosIndividuais';
@@ -60,6 +64,9 @@ const ProposalManagement: React.FC<ProposalManagementProps> = (props) => {
                     proposals={props.proposals} 
                     onUpdateProposal={props.onUpdateProposal}
                     showAdminMessage={props.showAdminMessage}
+                    classificationRules={props.classificationRules}
+                    onSaveClassificationRule={props.onSaveClassificationRule}
+                    onDeleteClassificationRule={props.onDeleteClassificationRule}
                 />;
             case 'votosIndividuais':
                 return <VotosIndividuais votes={props.votes} proposals={props.proposals} />;

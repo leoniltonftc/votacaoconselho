@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { GoogleGenAI, Type } from '@google/genai';
-import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser, AdminUser, SystemPhase, AdminPermissions } from './types';
+import { Proposal, Vote, ControlRecord, SheetsConfig, AppData, VotingStatus, ProposalSheetsConfig, ProposalResult, ProposalStatus, CurrentProposalRecord, LocalUser, AdminUser, SystemPhase, AdminPermissions, ClassificationRule } from './types';
 import Header from './components/Header';
 import AuthSection from './components/AuthSection';
 import TimerSection from './components/TimerSection';
@@ -65,6 +66,13 @@ const isValidAppData = (item: any): item is AppData => {
                    typeof item.username === 'string' &&
                    typeof item.password === 'string' &&
                    (item.permissions === undefined || typeof item.permissions === 'object');
+        case 'classification_rule':
+            return typeof item.id === 'string' &&
+                   typeof item.min_percent === 'number' &&
+                   typeof item.max_percent === 'number' &&
+                   typeof item.label === 'string' &&
+                   typeof item.action === 'string' &&
+                   typeof item.color === 'string';
         default:
             return false;
     }
@@ -196,7 +204,8 @@ const App: React.FC = () => {
     const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
     const [proposalSheetsConfig, setProposalSheetsConfig] = useState<ProposalSheetsConfig | null>(null);
     const [localUsers, setLocalUsers] = useState<LocalUser[]>([]);
-    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]); 
+    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+    const [classificationRules, setClassificationRules] = useState<ClassificationRule[]>([]);
     const [votingStatus, setVotingStatus] = useState<VotingStatus>(VotingStatus.NOT_STARTED);
     const [votingStartTime, setVotingStartTime] = useState<Date | null>(null);
     const [votingEndTime, setVotingEndTime] = useState<Date | null>(null);
@@ -238,6 +247,9 @@ const App: React.FC = () => {
 
             const allAdminUsers = data.filter(item => item.tipo === 'admin_user') as AdminUser[];
             setAdminUsers(allAdminUsers);
+
+            const allClassificationRules = data.filter(item => item.tipo === 'classification_rule') as ClassificationRule[];
+            setClassificationRules(allClassificationRules);
 
             const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
             if (controlRecords.length > 0) {
@@ -619,6 +631,7 @@ const App: React.FC = () => {
                     proposals={proposals}
                     localUsers={localUsers}
                     adminUsers={adminUsers}
+                    classificationRules={classificationRules}
                     votingStatus={votingStatus}
                     sheetsConfig={sheetsConfig}
                     proposalSheetsConfig={proposalSheetsConfig}
@@ -641,6 +654,8 @@ const App: React.FC = () => {
                     onDeleteUser={(user) => dataSdk.delete(user)}
                     onCreateAdminUser={(admin) => dataSdk.create(admin)}
                     onDeleteAdminUser={(admin) => dataSdk.delete(admin)}
+                    onSaveClassificationRule={(rule) => dataSdk.create(rule)}
+                    onDeleteClassificationRule={(rule) => dataSdk.delete(rule)}
                   />
                 )}
 

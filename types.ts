@@ -44,6 +44,9 @@ export interface Proposal {
     resultado_final?: ProposalResult | null;
     voting_duration_seconds?: number;
     is_plenary?: boolean;
+    // Classification fields
+    classification_label?: string;
+    classification_color?: string;
 }
 
 export enum VotingStatus {
@@ -133,4 +136,15 @@ export interface AdminUser {
     timestamp: string;
 }
 
-export type AppData = Vote | Proposal | ControlRecord | CurrentProposalRecord | SheetsConfig | ProposalSheetsConfig | LocalUser | AdminUser;
+export interface ClassificationRule {
+    id: string;
+    tipo: 'classification_rule';
+    min_percent: number;
+    max_percent: number;
+    label: string;
+    action: 'none' | 'promote_to_plenary';
+    color: string;
+    timestamp: string;
+}
+
+export type AppData = Vote | Proposal | ControlRecord | CurrentProposalRecord | SheetsConfig | ProposalSheetsConfig | LocalUser | AdminUser | ClassificationRule;

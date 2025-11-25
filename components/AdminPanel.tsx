@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect } from 'react';
-import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser, AdminUser, SystemPhase, AdminPermissions } from '../types';
+import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser, AdminUser, SystemPhase, AdminPermissions, ClassificationRule } from '../types';
 import ProposalManagement from './admin/ProposalManagement';
 import VotingControl from './admin/VotingControl';
 import SheetsAuthConfig from './admin/SheetsAuthConfig';
@@ -13,6 +13,7 @@ interface AdminPanelProps {
     proposals: Proposal[];
     localUsers: LocalUser[];
     adminUsers: AdminUser[];
+    classificationRules: ClassificationRule[];
     votingStatus: VotingStatus;
     sheetsConfig: SheetsConfig | null;
     proposalSheetsConfig: ProposalSheetsConfig | null;
@@ -35,6 +36,8 @@ interface AdminPanelProps {
     onDeleteUser: (user: LocalUser) => void;
     onCreateAdminUser: (user: AdminUser) => void;
     onDeleteAdminUser: (user: AdminUser) => void;
+    onSaveClassificationRule: (rule: ClassificationRule) => void;
+    onDeleteClassificationRule: (rule: ClassificationRule) => void;
 }
 
 declare global {
@@ -250,6 +253,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                     proposals={props.proposals}
                     proposalSheetsConfig={props.proposalSheetsConfig}
                     currentProposalId={props.currentProposalId}
+                    classificationRules={props.classificationRules}
                     onSaveProposalSheetsConfig={props.onSaveProposalSheetsConfig}
                     onCreateProposal={props.onCreateProposal}
                     onUpdateProposal={props.onUpdateProposal}
@@ -257,6 +261,8 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                     onSelectProposal={props.onSelectProposal}
                     showAdminMessage={showAdminMessage}
                     onResetProposalVote={props.onResetProposalVote}
+                    onSaveClassificationRule={props.onSaveClassificationRule}
+                    onDeleteClassificationRule={props.onDeleteClassificationRule}
                     systemPhase={props.systemPhase}
                 />
             )}
