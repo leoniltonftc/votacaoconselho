@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { Proposal, Vote, VotingStatus, SheetsConfig, CurrentProposalRecord, ProposalSheetsConfig, LocalUser, AdminUser, SystemPhase, AdminPermissions, ClassificationRule } from '../types';
 import ProposalManagement from './admin/ProposalManagement';
@@ -13,14 +12,16 @@ interface AdminPanelProps {
     proposals: Proposal[];
     localUsers: LocalUser[];
     adminUsers: AdminUser[];
-    classificationRules: ClassificationRule[];
     votingStatus: VotingStatus;
     sheetsConfig: SheetsConfig | null;
     proposalSheetsConfig: ProposalSheetsConfig | null;
     currentProposalId?: string;
     systemPhase: SystemPhase;
     currentAdminPermissions: AdminPermissions | null;
+    classificationRules: ClassificationRule[];
     onChangePhase: (phase: SystemPhase) => void;
+    onSaveClassificationRule: (rule: ClassificationRule) => void;
+    onDeleteClassificationRule: (rule: ClassificationRule) => void;
     onStartVoting: () => void;
     onEndVoting: () => void;
     onNewVoting: () => void;
@@ -36,8 +37,7 @@ interface AdminPanelProps {
     onDeleteUser: (user: LocalUser) => void;
     onCreateAdminUser: (user: AdminUser) => void;
     onDeleteAdminUser: (user: AdminUser) => void;
-    onSaveClassificationRule: (rule: ClassificationRule) => void;
-    onDeleteClassificationRule: (rule: ClassificationRule) => void;
+    onTogglePresentationMode: () => void; // Nova prop
 }
 
 declare global {
@@ -54,6 +54,14 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         setTimeout(() => setAdminMessage(null), 5000);
     };
 
+    // Default to true (all permissions) if not provided
+    const permissions = props.currentAdminPermissions || {
+        can_manage_voting: true,
+        can_manage_proposals: true,
+        can_manage_users: true,
+        can_manage_config: true
+    };
+
     const handleExportFullData = () => {
         if (typeof window.XLSX === 'undefined') {
             alert("Erro: A biblioteca SheetJS (XLSX) não foi carregada. Verifique a conexão com a internet.");
@@ -62,6 +70,19 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         
         try {
             const wb = window.XLSX.utils.book_new();
+
+            // Nova aba: Visão Geral e Status
+            const overviewData = [
+                { Chave: "Fase Atual do Sistema", Valor: props.systemPhase },
+                { Chave: "Status da Votação", Valor: props.votingStatus },
+                { Chave: "Total de Propostas", Valor: props.proposals.length },
+                { Chave: "Total de Votos", Valor: props.votes.length },
+                { Chave: "Total de Eleitores Locais", Valor: props.localUsers.length },
+                { Chave: "Total de Admins", Valor: props.adminUsers.length },
+                { Chave: "Data do Backup", Valor: new Date().toLocaleString() }
+            ];
+            const wsOverview = window.XLSX.utils.json_to_sheet(overviewData);
+            window.XLSX.utils.book_append_sheet(wb, wsOverview, "Visão Geral");
 
             // 1. Aba de Propostas
             const proposalsData = props.proposals.map(p => ({
@@ -74,6 +95,8 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 Descricao: p.descricao,
                 Status: p.status || 'PENDENTE',
                 Resultado: p.resultado_final || '-',
+                Classificacao: p.classification_label || '-',
+                Qualificada_Plenaria: p.is_plenary ? 'SIM' : 'NÃO',
                 Votos_Sim: p.votos_sim || 0,
                 Votos_Nao: p.votos_nao || 0,
                 Votos_Abstencao: p.votos_abstencao || 0,
@@ -112,6 +135,10 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
             const adminsData = props.adminUsers.map(a => ({
                 Usuario: a.username,
                 Senha: a.password,
+                Perm_Votar: a.permissions?.can_manage_voting ? 'SIM' : 'NÃO',
+                Perm_Propostas: a.permissions?.can_manage_proposals ? 'SIM' : 'NÃO',
+                Perm_Usuarios: a.permissions?.can_manage_users ? 'SIM' : 'NÃO',
+                Perm_Config: a.permissions?.can_manage_config ? 'SIM' : 'NÃO',
                 Data_Cadastro: a.timestamp ? new Date(a.timestamp).toLocaleString() : ''
             }));
             const wsAdmins = window.XLSX.utils.json_to_sheet(adminsData);
@@ -148,25 +175,14 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
         }
     };
 
-    // Lógica CRÍTICA para corrigir o display:
-    // Só retorna votos se o status for explicitamente STARTED ou CLOSED.
-    // Se for NOT_STARTED (após clicar em Nova Votação), retorna [] vazio.
     const getFilteredVotesForDisplay = () => {
         if (props.votingStatus !== VotingStatus.STARTED && props.votingStatus !== VotingStatus.CLOSED) {
             return [];
         }
-        
         if (!props.currentProposalId) {
             return [];
         }
-        
         return props.votes.filter(v => v.proposta_id === props.currentProposalId);
-    };
-
-    // Helper para verificar permissões
-    const hasPermission = (permission: keyof AdminPermissions) => {
-        if (!props.currentAdminPermissions) return false;
-        return props.currentAdminPermissions[permission];
     };
 
     return (
@@ -175,85 +191,128 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 <div className="flex items-center gap-4">
                     <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">🔧 Painel Administrativo</h2>
                     
-                    {/* Switch de Fase do Sistema */}
-                    <div className="flex items-center bg-gray-100 p-1 rounded-lg">
-                        <button 
-                            onClick={() => props.onChangePhase(SystemPhase.EIXOS)}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${props.systemPhase === SystemPhase.EIXOS ? 'bg-white shadow text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            Eixos Temáticos
-                        </button>
-                        <button 
-                            onClick={() => props.onChangePhase(SystemPhase.PLENARIA)}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${props.systemPhase === SystemPhase.PLENARIA ? 'bg-white shadow text-purple-700' : 'text-gray-500 hover:text-gray-700'}`}
-                        >
-                            Plenária Final
-                        </button>
-                    </div>
+                    {permissions.can_manage_config && (
+                        <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
+                            <button 
+                                onClick={() => props.onChangePhase(SystemPhase.EIXOS)}
+                                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${props.systemPhase === SystemPhase.EIXOS ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                Fase de Eixos
+                            </button>
+                            <button 
+                                onClick={() => props.onChangePhase(SystemPhase.PLENARIA)}
+                                className={`px-3 py-1 rounded text-xs font-bold transition-colors ${props.systemPhase === SystemPhase.PLENARIA ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 hover:bg-gray-200'}`}
+                            >
+                                Plenária Final
+                            </button>
+                        </div>
+                    )}
                 </div>
-                
                 <div className="flex gap-4 items-center">
+                    <button 
+                        onClick={props.onTogglePresentationMode} 
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
+                        title="Exibir proposta atual em tela cheia para projeção"
+                    >
+                        📺 Modo Apresentação
+                    </button>
+
                     <button 
                         onClick={handleExportFullData} 
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-sm transition-colors"
                     >
-                        📂 Backup Completo (Excel)
+                        📂 Backup Excel
                     </button>
                     <button onClick={props.onClose} className="text-red-600 hover:text-red-800 text-sm underline">Fechar Painel</button>
                 </div>
             </div>
 
-            {hasPermission('can_manage_voting') && (
+            {permissions.can_manage_config && (
+                <div className={`mb-6 p-4 rounded-lg border border-l-4 ${props.systemPhase === SystemPhase.PLENARIA ? 'bg-purple-50 border-purple-500 text-purple-800' : 'bg-blue-50 border-blue-500 text-blue-800'}`}>
+                    <div className="flex items-center gap-3">
+                        <span className="text-2xl">{props.systemPhase === SystemPhase.PLENARIA ? '🏛️' : '🗳️'}</span>
+                        <div>
+                            <h3 className="font-bold text-sm uppercase tracking-wide">Modo de Votação: {props.systemPhase === SystemPhase.PLENARIA ? 'Plenária Final' : 'Votação por Eixos'}</h3>
+                            <p className="text-xs mt-1 opacity-90">
+                                {props.systemPhase === SystemPhase.PLENARIA 
+                                    ? "Todos os usuários podem votar nas propostas qualificadas."
+                                    : "Usuários só podem votar em propostas do seu próprio eixo cadastrado."}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {permissions.can_manage_voting ? (
                 <VotingControl
                     votingStatus={props.votingStatus}
-                    votes={getFilteredVotesForDisplay()} 
+                    votes={getFilteredVotesForDisplay()}
                     onStartVoting={props.onStartVoting}
                     onEndVoting={props.onEndVoting}
                     onNewVoting={props.onNewVoting}
                     showAdminMessage={showAdminMessage}
                 />
+            ) : (
+                <div className="mb-6 p-4 bg-gray-100 border border-gray-300 rounded-lg text-center text-gray-500">
+                    <span className="block text-xl mb-1">🚫</span>
+                    Sem permissão para controlar votações.
+                </div>
             )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                {/* Coluna da Esquerda: Configurações do Sistema e Admins */}
+                {/* Column 1: Config & Admin Users */}
                 <div className="space-y-6">
-                    {hasPermission('can_manage_config') && (
+                    {permissions.can_manage_config ? (
                         <SheetsAuthConfig
                             sheetsConfig={props.sheetsConfig}
                             onSaveSheetsConfig={props.onSaveSheetsConfig}
                             showAdminMessage={showAdminMessage}
                         />
+                    ) : (
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 opacity-50 pointer-events-none">
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2">🔗 Configurar Planilha</h3>
+                            <p className="text-sm text-gray-500">Acesso restrito.</p>
+                        </div>
                     )}
-                    {hasPermission('can_manage_users') && (
+
+                    {permissions.can_manage_users ? (
                         <AdminUserManagement 
                             adminUsers={props.adminUsers}
                             onCreateAdminUser={props.onCreateAdminUser}
                             onDeleteAdminUser={props.onDeleteAdminUser}
                             showAdminMessage={showAdminMessage}
                         />
-                    )}
+                    ) : null}
                 </div>
 
-                {/* Coluna da Direita: Gerenciamento de Eleitores (Lista longa) */}
+                {/* Column 2: Voter Users */}
                 <div>
-                     {hasPermission('can_manage_users') && (
+                     {permissions.can_manage_users ? (
                         <UserManagement 
                             localUsers={props.localUsers}
                             onCreateUser={props.onCreateUser}
                             onDeleteUser={props.onDeleteUser}
                             showAdminMessage={showAdminMessage}
                         />
+                    ) : (
+                        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 opacity-50">
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2">👤 Gerenciar Usuários</h3>
+                            <p className="text-sm text-gray-500">Você não tem permissão para gerenciar usuários.</p>
+                        </div>
                     )}
                 </div>
             </div>
             
-            {hasPermission('can_manage_proposals') && (
+            {permissions.can_manage_proposals ? (
                 <ProposalManagement
                     votes={props.votes}
                     proposals={props.proposals}
                     proposalSheetsConfig={props.proposalSheetsConfig}
                     currentProposalId={props.currentProposalId}
+                    systemPhase={props.systemPhase}
                     classificationRules={props.classificationRules}
+                    onSaveClassificationRule={props.onSaveClassificationRule}
+                    onDeleteClassificationRule={props.onDeleteClassificationRule}
                     onSaveProposalSheetsConfig={props.onSaveProposalSheetsConfig}
                     onCreateProposal={props.onCreateProposal}
                     onUpdateProposal={props.onUpdateProposal}
@@ -261,10 +320,12 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                     onSelectProposal={props.onSelectProposal}
                     showAdminMessage={showAdminMessage}
                     onResetProposalVote={props.onResetProposalVote}
-                    onSaveClassificationRule={props.onSaveClassificationRule}
-                    onDeleteClassificationRule={props.onDeleteClassificationRule}
-                    systemPhase={props.systemPhase}
                 />
+            ) : (
+                <div className="bg-gray-50 rounded-lg p-6 border border-gray-200 text-center">
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">📝 Gerenciar Propostas</h3>
+                    <p className="text-gray-500">Você não tem permissão para acessar o módulo de propostas.</p>
+                </div>
             )}
 
             {adminMessage && (

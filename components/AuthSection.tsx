@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import { SheetsConfig, LocalUser } from '../types';
 
@@ -8,6 +7,18 @@ interface AuthSectionProps {
     sheetsConfig: SheetsConfig | null;
     localUsers: LocalUser[];
 }
+
+// Função auxiliar para converter letras de coluna (A, Z, AA, AV) para índice numérico (0, 25, 26, 47)
+const getColumnIndex = (colStr: string | undefined): number => {
+    if (!colStr) return -1;
+    const col = colStr.toUpperCase().trim();
+    let sum = 0;
+    for (let i = 0; i < col.length; i++) {
+        sum *= 26;
+        sum += (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+    }
+    return sum - 1;
+};
 
 // Adicionada função de análise de CSV robusta para lidar com valores que contêm vírgulas e aspas.
 const parseCsvLine = (line: string): string[] => {
@@ -60,7 +71,8 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
             throw new Error('URL da planilha inválida.');
         }
 
-        const range = `A1:Z1000`;
+        // Aumentado o range para cobrir colunas duplas (ex: AV, ZZ)
+        const range = `A1:ZZ2000`;
         const apiUrl = buildSheetsApiUrl(sheetId, config.sheet_name, range);
 
         const response = await fetch(apiUrl);
@@ -76,27 +88,58 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
         const csvText = await fetchGoogleSheetsData(sheetsConfig);
         const lines = csvText.trim().split(/\r?\n/);
         
-        // Pula a linha de cabeçalho para evitar comparar a senha com o título da coluna.
+        // Pula a linha de cabeçalho
         const dataLines = lines.slice(1);
         
-        const usernameColIndex = sheetsConfig.username_column.toUpperCase().charCodeAt(0) - 65;
-        const passwordColIndex = sheetsConfig.password_column.toUpperCase().charCodeAt(0) - 65;
-        
-        let eixoColIndex = -1;
-        if (sheetsConfig.eixo_column) {
-            eixoColIndex = sheetsConfig.eixo_column.toUpperCase().charCodeAt(0) - 65;
-        }
+        // Usa a função getColumnIndex para suportar colunas como "AV"
+        const usernameColIndex = getColumnIndex(sheetsConfig.username_column);
+        const passwordColIndex = getColumnIndex(sheetsConfig.password_column);
+        const eixoColIndex = getColumnIndex(sheetsConfig.eixo_column);
+
+        // Normaliza a senha de entrada (remove não dígitos)
+        const cleanInputPass = pass.replace(/\D/g, '');
 
         for (const line of dataLines) {
             const values = parseCsvLine(line);
+            
+            // Verifica se a linha tem colunas suficientes para ler a senha
+            if (values.length <= passwordColIndex) continue;
+
             const sheetPassword = values[passwordColIndex];
-            if (sheetPassword === pass) {
+            
+            if (!sheetPassword) continue;
+
+            // Normaliza a senha da planilha
+            const cleanSheetPass = sheetPassword.replace(/\D/g, '');
+            
+            // Compara exato OU limpo (flexibilidade)
+            if (sheetPassword === pass || cleanSheetPass === cleanInputPass) {
                 const username = values[usernameColIndex] || 'Usuário Autenticado';
-                const userEixo = (eixoColIndex >= 0 && values[eixoColIndex]) ? values[eixoColIndex] : null;
+                // Garante que o índice do eixo existe na linha antes de ler
+                const userEixo = (eixoColIndex >= 0 && values.length > eixoColIndex) ? values[eixoColIndex] : null;
                 return { success: true, username, userEixo };
             }
         }
         return { success: false, username: null, userEixo: null };
+    };
+
+    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        let value = e.target.value;
+        
+        // Remove tudo que não é dígito
+        value = value.replace(/\D/g, "");
+        
+        // Limita para 11 dígitos
+        if (value.length > 11) {
+            value = value.slice(0, 11);
+        }
+
+        // Aplica a máscara de CPF: 000.000.000-00
+        value = value.replace(/(\d{3})(\d)/, "$1.$2");
+        value = value.replace(/(\d{3})(\d)/, "$1.$2");
+        value = value.replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+        
+        setPassword(value);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -105,10 +148,16 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
         setIsLoading(true);
         
         const trimmedPassword = password.trim();
+        const cleanInputPass = trimmedPassword.replace(/\D/g, '');
 
         try {
             // 1. Verificar usuários locais primeiro (prioridade)
-            const localUser = localUsers.find(u => u.password === trimmedPassword);
+            // Verifica tanto a senha exata quanto a senha sem formatação
+            const localUser = localUsers.find(u => {
+                const cleanUserPass = u.password.replace(/\D/g, '');
+                return u.password === trimmedPassword || cleanUserPass === cleanInputPass;
+            });
+
             if (localUser) {
                 onAuthenticate(localUser.username, localUser.eixo || null);
                 setIsLoading(false);
@@ -121,7 +170,7 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
                 if (authResult.success) {
                     onAuthenticate(authResult.username!, authResult.userEixo || null);
                 } else {
-                    setError("Código inválido. Verifique seu código e tente novamente.");
+                    setError("CPF não encontrado ou inválido. Verifique seus dados.");
                 }
             } else {
                  setError("Usuário não encontrado e autenticação externa não configurada.");
@@ -138,25 +187,28 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
         <section className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 mb-4 sm:mb-6 lg:mb-8 mx-1 sm:mx-2">
             <div className="text-center">
                 <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800 mb-4 sm:mb-6 px-2">🔐 Acesso ao Sistema de Votação</h2>
-                <p className="text-gray-600 mb-6 text-sm sm:text-base">Para participar da votação, digite sua senha de acesso:</p>
+                <p className="text-gray-600 mb-6 text-sm sm:text-base">Para participar, digite seu CPF abaixo:</p>
                 <form onSubmit={handleSubmit} className="max-w-md mx-auto space-y-4">
                     <div>
-                        <label htmlFor="user-password" className="block text-sm font-medium text-gray-700 mb-2">Senha:</label>
+                        <label htmlFor="user-password" className="block text-sm font-medium text-gray-700 mb-2">CPF:</label>
                         <div className="relative">
                             <input
-                                type={showPassword ? "text" : "password"}
+                                type={showPassword ? "text" : "text"} // Mantém text para a máscara funcionar visualmente bem
                                 id="user-password"
-                                className="w-full px-4 py-3 pr-12 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                placeholder="Digite sua senha"
+                                className="w-full px-4 py-3 pr-12 text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono tracking-wider"
+                                placeholder="000.000.000-00"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={handlePasswordChange}
                                 required
                                 disabled={isLoading}
+                                maxLength={14}
+                                inputMode="numeric"
                             />
-                            <button
+                             <button
                                 type="button"
                                 onClick={() => setShowPassword(!showPassword)}
                                 className="absolute inset-y-0 right-0 flex items-center justify-center w-12 text-gray-500 hover:text-gray-700 focus:outline-none"
+                                title={showPassword ? "Ocultar" : "Mostrar"}
                             >
                                 <span className="text-xl">{showPassword ? '🙈' : '👁️'}</span>
                             </button>
@@ -169,7 +221,7 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
                     {error && (
                          <div className="mt-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded-lg text-center">
                            <span className="text-xl">❌</span>
-                           <p className="font-semibold">Erro na Autenticação</p>
+                           <p className="font-semibold">Erro de Acesso</p>
                            <p className="text-sm">{error}</p>
                          </div>
                     )}
@@ -177,7 +229,7 @@ const AuthSection: React.FC<AuthSectionProps> = ({ onAuthenticate, sheetsConfig,
                     {isLoading && (
                         <div className="mt-4 p-3 bg-blue-100 border border-blue-400 text-blue-700 rounded-lg text-center">
                             <span className="text-xl">🔄</span>
-                            <p className="font-semibold">Verificando código...</p>
+                            <p className="font-semibold">Validando CPF...</p>
                         </div>
                     )}
                 </form>

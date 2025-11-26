@@ -12,6 +12,7 @@ import AdminPanel from './components/AdminPanel';
 import AdminLoginModal from './components/modals/AdminLoginModal';
 import { ADMIN_PASSWORD, DEFAULT_CONFIG } from './constants';
 import WelcomeScreen from './components/WelcomeScreen';
+import PresentationScreen from './components/PresentationScreen';
 
 const isValidAppData = (item: any): item is AppData => {
     if (!item || typeof item !== 'object' || !item.tipo || typeof item.tipo !== 'string') {
@@ -67,12 +68,10 @@ const isValidAppData = (item: any): item is AppData => {
                    typeof item.password === 'string' &&
                    (item.permissions === undefined || typeof item.permissions === 'object');
         case 'classification_rule':
-            return typeof item.id === 'string' &&
+             return typeof item.id === 'string' &&
                    typeof item.min_percent === 'number' &&
                    typeof item.max_percent === 'number' &&
-                   typeof item.label === 'string' &&
-                   typeof item.action === 'string' &&
-                   typeof item.color === 'string';
+                   typeof item.label === 'string';
         default:
             return false;
     }
@@ -197,6 +196,7 @@ const App: React.FC = () => {
     const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
     const [currentAdminPermissions, setCurrentAdminPermissions] = useState<AdminPermissions | null>(null); 
     const [isAuthLoading, setIsAuthLoading] = useState(true);
+    const [isPresentationMode, setIsPresentationMode] = useState(false); // New State for Presentation Mode
 
     const [votes, setVotes] = useState<Vote[]>([]);
     const [proposals, setProposals] = useState<Proposal[]>([]);
@@ -204,8 +204,9 @@ const App: React.FC = () => {
     const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
     const [proposalSheetsConfig, setProposalSheetsConfig] = useState<ProposalSheetsConfig | null>(null);
     const [localUsers, setLocalUsers] = useState<LocalUser[]>([]);
-    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+    const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]); 
     const [classificationRules, setClassificationRules] = useState<ClassificationRule[]>([]);
+
     const [votingStatus, setVotingStatus] = useState<VotingStatus>(VotingStatus.NOT_STARTED);
     const [votingStartTime, setVotingStartTime] = useState<Date | null>(null);
     const [votingEndTime, setVotingEndTime] = useState<Date | null>(null);
@@ -222,10 +223,7 @@ const App: React.FC = () => {
         : false;
 
     const canVoteInCurrentEixo = useCallback(() => {
-        // Se for plenária final, libera geral
-        if (systemPhase === SystemPhase.PLENARIA) return true;
-        
-        // Se não houver proposta ou usuário não tiver eixo, bloqueia
+        if (systemPhase === SystemPhase.PLENARIA) return true; 
         if (!currentProposal || !authenticatedUserEixo) return false; 
         
         const propEixo = currentProposal.categoria.trim().toLowerCase();
@@ -247,9 +245,9 @@ const App: React.FC = () => {
 
             const allAdminUsers = data.filter(item => item.tipo === 'admin_user') as AdminUser[];
             setAdminUsers(allAdminUsers);
-
-            const allClassificationRules = data.filter(item => item.tipo === 'classification_rule') as ClassificationRule[];
-            setClassificationRules(allClassificationRules);
+            
+            const allRules = data.filter(item => item.tipo === 'classification_rule') as ClassificationRule[];
+            setClassificationRules(allRules);
 
             const controlRecords = data.filter(item => item.tipo === 'control') as ControlRecord[];
             if (controlRecords.length > 0) {
@@ -319,7 +317,6 @@ const App: React.FC = () => {
         const wasAdminAuth = localStorage.getItem('admin_authenticated') === 'true';
         const authTimestamp = localStorage.getItem('admin_auth_timestamp');
         
-        // Restore Admin Permissions if session is valid
         if(wasAdminAuth && authTimestamp) {
             const oneHour = 60 * 60 * 1000;
             if (Date.now() - parseInt(authTimestamp, 10) < oneHour) {
@@ -362,7 +359,6 @@ const App: React.FC = () => {
     };
 
     const handleAdminAuthenticate = (username: string, password: string) => {
-        // 1. Master Password (Super Admin - All permissions)
         if (password === ADMIN_PASSWORD) {
             const superPermissions: AdminPermissions = {
                 can_manage_voting: true,
@@ -378,12 +374,10 @@ const App: React.FC = () => {
             setIsAdminModalOpen(false);
             return true;
         }
-        // 2. Registered Admin User
         if (username) {
             const adminUser = adminUsers.find(u => u.username === username && u.password === password);
             if (adminUser) {
                 setIsAdminAuthenticated(true);
-                // Default permissions to all true for old records, or use stored permissions
                 const permissions = adminUser.permissions || {
                     can_manage_voting: true,
                     can_manage_proposals: true,
@@ -412,9 +406,8 @@ const App: React.FC = () => {
     const handleVote = async (voteOption: 'SIM' | 'NÃO' | 'ABSTENÇÃO') => {
         if (!isUserAuthenticated || !authenticatedUserCode || hasVoted || votingStatus !== VotingStatus.STARTED || !currentProposal) return;
 
-        // CRITICAL CHECK: Ensure user belongs to the correct Axis before creating vote
         if (!canVoteInCurrentEixo()) {
-            console.warn("Tentativa de voto bloqueada: Eixo do usuário não corresponde.");
+            alert(`Você está cadastrado no "${authenticatedUserEixo || 'N/A'}" e só pode votar em propostas deste eixo nesta fase.`);
             return;
         }
 
@@ -486,7 +479,10 @@ const App: React.FC = () => {
                 total_votos: 0,
                 resultado_final: undefined,
                 data_votacao: undefined,
-                voting_duration_seconds: 0
+                voting_duration_seconds: 0,
+                is_plenary: false,
+                classification_label: undefined,
+                classification_color: undefined
             };
             await dataSdk.update(resetProposal);
 
@@ -560,6 +556,17 @@ const App: React.FC = () => {
         return <WelcomeScreen onEnter={handleEnterApp} />;
     }
     
+    if (isPresentationMode) {
+        return (
+            <PresentationScreen 
+                proposal={currentProposal} 
+                onClose={() => setIsPresentationMode(false)} 
+                defaultTitle={DEFAULT_CONFIG.titulo_votacao}
+                defaultQuestion={DEFAULT_CONFIG.pergunta_votacao}
+            />
+        );
+    }
+
     if (isAuthLoading) {
       return (
         <div className="flex items-center justify-center min-h-screen">
@@ -567,6 +574,8 @@ const App: React.FC = () => {
         </div>
       )
     }
+
+    const userCanParticipate = canVoteInCurrentEixo();
 
     return (
         <div className="p-2 sm:p-4 lg:p-6 min-h-screen">
@@ -591,23 +600,55 @@ const App: React.FC = () => {
                           startTime={votingStartTime}
                           endTime={votingEndTime}
                         />
-                        <ProposalSection
-                           eixo={currentEixoText}
-                           title={currentProposalTitle}
-                           text={currentProposalText}
-                        />
 
-                        {votingStatus !== VotingStatus.CLOSED && (
-                          <VotingSection
-                              status={votingStatus}
-                              hasVoted={hasVoted}
-                              onVote={handleVote}
-                              userCode={authenticatedUserCode}
-                              userEixo={authenticatedUserEixo}
-                              proposalEixo={currentProposal?.categoria}
-                              systemPhase={systemPhase}
-                              onLogout={handleLogout}
-                          />
+                        {/* Exibição Condicional: Se o usuário não puder participar, esconde a proposta e os botões */}
+                        {userCanParticipate ? (
+                            <>
+                                <ProposalSection
+                                    eixo={currentEixoText}
+                                    title={currentProposalTitle}
+                                    text={currentProposalText}
+                                />
+
+                                {votingStatus !== VotingStatus.CLOSED && (
+                                    <VotingSection
+                                        status={votingStatus}
+                                        hasVoted={hasVoted}
+                                        onVote={handleVote}
+                                        userCode={authenticatedUserCode}
+                                        userEixo={authenticatedUserEixo}
+                                        proposalEixo={currentProposal?.categoria}
+                                        systemPhase={systemPhase}
+                                        onLogout={handleLogout}
+                                    />
+                                )}
+                            </>
+                        ) : (
+                            <div className="bg-white rounded-xl shadow-xl p-8 mb-6 text-center mx-2 border border-gray-200">
+                                <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-100 text-orange-500 rounded-full mb-6">
+                                    <span className="text-4xl">⏳</span>
+                                </div>
+                                <h2 className="text-2xl font-bold text-gray-800 mb-3">Aguarde a vez do seu Eixo</h2>
+                                <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-6">
+                                    No momento, está ocorrendo a votação do <strong>{currentProposal?.categoria}</strong>.
+                                    Como você está cadastrado no <strong>{authenticatedUserEixo || 'Eixo Indefinido'}</strong>, 
+                                    a proposta não está visível para você.
+                                </p>
+                                <div className="inline-block bg-gray-100 px-6 py-3 rounded-lg text-sm font-medium text-gray-700 border border-gray-300">
+                                    Aguarde o início da votação do seu eixo ou da Plenária Final.
+                                </div>
+                                <div className="mt-8 border-t border-gray-100 pt-6">
+                                    <div className="flex justify-center items-center gap-4 text-sm text-gray-500">
+                                        <span className="flex items-center gap-2">
+                                            👤 Conectado como: <span className="font-mono font-bold text-gray-700">{authenticatedUserCode}</span>
+                                        </span>
+                                        <span className="text-gray-300">|</span>
+                                        <button onClick={handleLogout} className="text-red-600 hover:text-red-800 font-semibold hover:underline">
+                                            Sair
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         )}
                         
                         {votingStatus === VotingStatus.CLOSED && currentProposal && (
@@ -631,13 +672,15 @@ const App: React.FC = () => {
                     proposals={proposals}
                     localUsers={localUsers}
                     adminUsers={adminUsers}
-                    classificationRules={classificationRules}
                     votingStatus={votingStatus}
                     sheetsConfig={sheetsConfig}
                     proposalSheetsConfig={proposalSheetsConfig}
                     currentProposalId={currentProposal?.id}
                     systemPhase={systemPhase}
-                    currentAdminPermissions={currentAdminPermissions} // Pass permissions
+                    currentAdminPermissions={currentAdminPermissions} 
+                    classificationRules={classificationRules}
+                    onSaveClassificationRule={(rule) => dataSdk.create(rule)}
+                    onDeleteClassificationRule={(rule) => dataSdk.delete(rule)}
                     onChangePhase={handleChangePhase} 
                     onStartVoting={handleStartVoting}
                     onEndVoting={handleEndVoting}
@@ -654,8 +697,7 @@ const App: React.FC = () => {
                     onDeleteUser={(user) => dataSdk.delete(user)}
                     onCreateAdminUser={(admin) => dataSdk.create(admin)}
                     onDeleteAdminUser={(admin) => dataSdk.delete(admin)}
-                    onSaveClassificationRule={(rule) => dataSdk.create(rule)}
-                    onDeleteClassificationRule={(rule) => dataSdk.delete(rule)}
+                    onTogglePresentationMode={() => setIsPresentationMode(true)}
                   />
                 )}
 

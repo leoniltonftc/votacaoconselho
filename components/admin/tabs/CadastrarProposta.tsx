@@ -31,6 +31,18 @@ const buildSheetsApiUrl = (sheetId: string, sheetName: string) => {
     return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}&_=${new Date().getTime()}`;
 };
 
+// Função para converter letras de coluna (A, Z, AA, AV) para índice numérico
+const getColumnIndex = (colStr: string | undefined): number => {
+    if (!colStr) return -1;
+    const col = colStr.toUpperCase().trim();
+    let sum = 0;
+    for (let i = 0; i < col.length; i++) {
+        sum *= 26;
+        sum += (col.charCodeAt(i) - 'A'.charCodeAt(0) + 1);
+    }
+    return sum - 1;
+};
+
 const parseCsvLine = (line: string): string[] => {
     const result: string[] = [];
     let current = '';
@@ -185,25 +197,29 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
             // Remove header line
             const dataLines = lines.slice(1);
 
-            const tituloColIndex = (configToUse.titulo_column || 'A').toUpperCase().charCodeAt(0) - 65;
-            const eixoColIndex = (configToUse.eixo_column || 'B').toUpperCase().charCodeAt(0) - 65;
-            const abrangenciaColIndex = (configToUse.abrangencia_column || 'C').toUpperCase().charCodeAt(0) - 65;
-            const regionalSaudeColIndex = (configToUse.regional_saude_column || 'D').toUpperCase().charCodeAt(0) - 65;
-            const municipioColIndex = (configToUse.municipio_column || 'E').toUpperCase().charCodeAt(0) - 65;
-            const descricaoColIndex = (configToUse.descricao_column || 'F').toUpperCase().charCodeAt(0) - 65;
+            const tituloColIndex = getColumnIndex(configToUse.titulo_column);
+            const eixoColIndex = getColumnIndex(configToUse.eixo_column);
+            const abrangenciaColIndex = getColumnIndex(configToUse.abrangencia_column);
+            const regionalSaudeColIndex = getColumnIndex(configToUse.regional_saude_column);
+            const municipioColIndex = getColumnIndex(configToUse.municipio_column);
+            const descricaoColIndex = getColumnIndex(configToUse.descricao_column);
 
             const proposalsData: LoadedProposal[] = dataLines.map(line => {
                 const values = parseCsvLine(line);
+                
+                // Verifica se tem a coluna de título (ou se o índice está fora do range da linha)
+                if (values.length <= tituloColIndex) return null;
+
                 const titulo = values[tituloColIndex] || '';
                 if (!titulo) return null;
 
                 return {
                     titulo: titulo,
-                    eixo: values[eixoColIndex] || '',
-                    abrangencia: values[abrangenciaColIndex] || '',
-                    regional_saude: values[regionalSaudeColIndex] || '',
-                    municipio: values[municipioColIndex] || '',
-                    descricao: values[descricaoColIndex] || ''
+                    eixo: (eixoColIndex >= 0 && values.length > eixoColIndex) ? values[eixoColIndex] : '',
+                    abrangencia: (abrangenciaColIndex >= 0 && values.length > abrangenciaColIndex) ? values[abrangenciaColIndex] : '',
+                    regional_saude: (regionalSaudeColIndex >= 0 && values.length > regionalSaudeColIndex) ? values[regionalSaudeColIndex] : '',
+                    municipio: (municipioColIndex >= 0 && values.length > municipioColIndex) ? values[municipioColIndex] : '',
+                    descricao: (descricaoColIndex >= 0 && values.length > descricaoColIndex) ? values[descricaoColIndex] : ''
                 };
             }).filter((p): p is LoadedProposal => p !== null);
 
@@ -321,8 +337,6 @@ const CadastrarProposta: React.FC<CadastrarPropostaProps> = ({ proposals, onCrea
                                     <option value="">Escolha uma proposta para preencher automaticamente</option>
                                     {loadedProposals.map((p, index) => {
                                         if (!registeredProposalTitles.has(p.titulo)) {
-                                            // Opcional: Filtrar dropdown se estivermos numa aba de eixo específica
-                                            // if (defaultEixo && p.eixo !== defaultEixo) return null; 
                                             return <option key={index} value={index}>{p.titulo}</option>;
                                         }
                                         return null;
