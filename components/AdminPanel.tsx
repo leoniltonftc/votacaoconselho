@@ -6,6 +6,7 @@ import VotingControl from './admin/VotingControl';
 import SheetsAuthConfig from './admin/SheetsAuthConfig';
 import UserManagement from './admin/UserManagement';
 import AdminUserManagement from './admin/AdminUserManagement';
+import NotificationCenter from './admin/NotificationCenter';
 
 interface AdminPanelProps {
     votes: Vote[];
@@ -37,7 +38,7 @@ interface AdminPanelProps {
     onDeleteUser: (user: LocalUser) => void;
     onCreateAdminUser: (user: AdminUser) => void;
     onDeleteAdminUser: (user: AdminUser) => void;
-    onTogglePresentationMode: () => void; // Nova prop
+    onTogglePresentationMode: () => void;
 }
 
 declare global {
@@ -191,6 +192,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
                 <div className="flex items-center gap-4">
                     <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800">🔧 Painel Administrativo</h2>
                     
+                    {/* Phase Control - Only if can_manage_config */}
                     {permissions.can_manage_config && (
                         <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
                             <button 
@@ -262,6 +264,13 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 {/* Column 1: Config & Admin Users */}
                 <div className="space-y-6">
+                     {permissions.can_manage_users && (
+                        <NotificationCenter 
+                            localUsers={props.localUsers}
+                            showAdminMessage={showAdminMessage}
+                        />
+                    )}
+
                     {permissions.can_manage_config ? (
                         <SheetsAuthConfig
                             sheetsConfig={props.sheetsConfig}
@@ -287,7 +296,7 @@ const AdminPanel: React.FC<AdminPanelProps> = (props) => {
 
                 {/* Column 2: Voter Users */}
                 <div>
-                     {permissions.can_manage_users ? (
+                    {permissions.can_manage_users ? (
                         <UserManagement 
                             localUsers={props.localUsers}
                             onCreateUser={props.onCreateUser}
