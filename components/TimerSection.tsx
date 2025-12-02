@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { VotingStatus } from '../types';
 
@@ -13,7 +12,6 @@ const TimerSection: React.FC<TimerSectionProps> = ({ status, startTime, endTime 
     const [elapsedTime, setElapsedTime] = useState('00:00:00');
 
     useEffect(() => {
-        // Fix: Use `number` for setInterval return type in browser environments instead of `NodeJS.Timeout`.
         let interval: number | null = null;
 
         if (status === VotingStatus.STARTED && startTime) {
@@ -42,36 +40,32 @@ const TimerSection: React.FC<TimerSectionProps> = ({ status, startTime, endTime 
         };
     }, [status, startTime, endTime]);
 
-    const getStatusText = () => {
+    const getStatusColor = () => {
         switch (status) {
-            case VotingStatus.STARTED:
-                return 'Votação em andamento';
-            case VotingStatus.CLOSED:
-                return 'Votação encerrada';
-            default:
-                return 'Aguardando início da votação';
-        }
-    };
-    
-    const getContainerClass = () => {
-        switch (status) {
-            case VotingStatus.STARTED:
-                 return 'bg-gradient-to-r from-green-500 to-green-600';
-            case VotingStatus.CLOSED:
-                return 'bg-gradient-to-r from-red-500 to-red-600';
-            default:
-                return 'bg-gradient-to-r from-blue-500 to-indigo-600';
+            case VotingStatus.STARTED: return 'from-green-500 to-emerald-600 shadow-green-200';
+            case VotingStatus.CLOSED: return 'from-slate-700 to-slate-800 shadow-slate-200';
+            default: return 'from-blue-500 to-indigo-600 shadow-blue-200';
         }
     }
 
     return (
-        <section className={`rounded-lg sm:rounded-xl lg:rounded-2xl shadow-xl p-4 sm:p-6 lg:p-8 mb-4 sm:mb-6 lg:mb-8 mx-1 sm:mx-2 text-white ${getContainerClass()}`}>
-            <div className="text-center">
-                <h2 className="text-lg sm:text-xl lg:text-2xl font-bold mb-4">⏰ Tempo de Votação</h2>
-                <div className="text-3xl sm:text-4xl lg:text-5xl font-mono font-bold mb-4 bg-white bg-opacity-20 rounded-xl px-6 py-4 backdrop-blur-sm border border-white border-opacity-30 shadow-lg">
+        <section className={`relative overflow-hidden rounded-3xl shadow-2xl mb-6 mx-1 sm:mx-2 text-white bg-gradient-to-r ${getStatusColor()} transition-all duration-500`}>
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')]"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-6 md:p-8 gap-4">
+                <div className="text-center md:text-left">
+                    <h2 className="text-sm font-bold uppercase tracking-widest opacity-80 mb-1">Cronômetro Oficial</h2>
+                    <p className="text-xs opacity-60">Tempo de sessão ativo</p>
+                </div>
+                
+                <div className="font-mono text-5xl md:text-6xl font-black tracking-wider drop-shadow-md">
                     {elapsedTime}
                 </div>
-                <p className="text-sm sm:text-base bg-white bg-opacity-15 rounded-lg px-4 py-2 inline-block font-medium">{getStatusText()}</p>
+
+                <div className="hidden md:block w-12 h-12 rounded-full bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                    <span className="text-2xl">{status === VotingStatus.STARTED ? '⚡' : '🏁'}</span>
+                </div>
             </div>
         </section>
     );

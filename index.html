@@ -9,140 +9,94 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
     <style>
       body {
+        font-family: 'Inter', sans-serif;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        background-color: #f3f4f6;
       }
-      .vote-button {
-          transition: all 0.3s ease;
-          transform: scale(1);
+
+      /* Animated Background */
+      .animated-bg {
+        background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: -1;
+        opacity: 0.15;
       }
-      .vote-button:hover {
-          transform: scale(1.05);
+
+      @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
       }
-      .vote-button:active {
-          transform: scale(0.95);
+
+      /* Glassmorphism Utilities */
+      .glass {
+        background: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
       }
-      .result-bar {
-          transition: width 0.8s ease-in-out;
+      
+      .glass-dark {
+        background: rgba(15, 23, 42, 0.8);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
-      /* Animações para a tela de boas-vindas */
-      @keyframes fade-in {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
+
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
       }
-      @keyframes pulse-slow {
-        0%, 100% {
-          transform: scale(1);
-          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
-        }
-        50% {
-          transform: scale(1.02);
-          box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
-        }
+      ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
       }
-      @keyframes slide-in-up {
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+      }
+
+      /* Animations */
+      .fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+      }
+      @keyframes fadeInUp {
         from { opacity: 0; transform: translateY(20px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      @keyframes blob {
-        0% { transform: translate(0px, 0px) scale(1); }
-        33% { transform: translate(30px, -50px) scale(1.1); }
-        66% { transform: translate(-20px, 20px) scale(0.9); }
-        100% { transform: translate(0px, 0px) scale(1); }
-      }
 
-      .animate-fade-in {
-        animation: fade-in 0.8s ease-out forwards;
+      .vote-button {
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
       }
-      .animate-pulse-slow {
-        animation: pulse-slow 2.5s infinite;
-      }
-      .animate-slide-in-up {
-        animation: slide-in-up 0.7s ease-out forwards;
-        opacity: 0; /* Começa invisível */
-      }
-      .animate-blob {
-        animation: blob 7s infinite;
-      }
-      .animation-delay-2000 {
-        animation-delay: 2s;
-      }
-      .animation-delay-4000 {
-        animation-delay: 4s;
-      }
-
-      /* Estilos personalizados para os cards da tela de boas-vindas */
-      .welcome-card {
-        background-color: rgba(255, 255, 255, 0.7);
-        border: 1px solid rgba(209, 213, 219, 0.3);
-        border-radius: 1.25rem;
-        padding: 1.5rem;
-        text-align: center;
-        transition: transform 0.3s ease, box-shadow 0.3s ease;
-      }
-      .welcome-card:hover {
-        transform: translateY(-8px);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
-      }
-      .card-icon {
-        width: 4rem;
-        height: 4rem;
-        border-radius: 9999px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        margin: 0 auto 1rem;
-      }
-      .card-title {
-        font-size: 1.25rem;
-        font-weight: 600;
-        margin-bottom: 0.75rem;
-      }
-      .card-list {
-        list-style-position: inside;
-        text-align: left;
-        color: #4b5563; /* text-gray-600 */
-        font-size: 0.95rem;
-        line-height: 1.6;
-      }
-      .card-list li {
-        margin-bottom: 0.5rem;
+      .vote-button:active {
+          transform: scale(0.96);
       }
 
       /* Print Styles */
       @media print {
-        body.is-printing #root > div > div > *:not(.is-printing-section) {
-          display: none !important;
-        }
-        body.is-printing {
-          background: #fff !important;
-        }
-        .is-printing-section {
-          position: absolute;
-          top: 0;
-          left: 0;
-          width: 100%;
-          margin: 0;
-          padding: 1in;
-          box-shadow: none !important;
-          border: none !important;
-          max-height: none !important;
-          overflow-y: visible !important;
-        }
-        .is-printing-section .no-print {
-          display: none !important;
-        }
-        .is-printing-section .printable-proposal {
-          page-break-inside: avoid;
-          border-bottom: 1px solid #ccc;
-          padding-bottom: 1rem;
-          margin-bottom: 1rem;
-        }
+        .no-print { display: none !important; }
+        .printable-section { display: block !important; }
+        body { background: white !important; }
+        .glass { background: white !important; border: none !important; box-shadow: none !important; }
       }
-
     </style>
 <script type="importmap">
 {
@@ -155,7 +109,8 @@
 }
 </script>
 </head>
-<body class="min-h-full bg-gradient-to-br from-blue-50 to-indigo-100">
+<body class="min-h-full text-slate-800">
+    <div class="animated-bg"></div>
     <div id="root" class="min-h-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

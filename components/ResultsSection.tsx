@@ -6,7 +6,7 @@ interface ResultsSectionProps {
     votes: Vote[];
 }
 
-const ResultsSection: React.FC<ResultsSectionProps> = ({ votes }) => {
+const ResultsSection: React.FC<ResultsSectionProps> = React.memo(({ votes }) => {
     const simVotes = votes.filter(v => v.voto === 'SIM').length;
     const naoVotes = votes.filter(v => v.voto === 'NÃO').length;
     const abstencaoVotes = votes.filter(v => v.voto === 'ABSTENÇÃO').length;
@@ -20,49 +20,65 @@ const ResultsSection: React.FC<ResultsSectionProps> = ({ votes }) => {
     const naoPercent = getPercent(naoVotes);
     const abstencaoPercent = getPercent(abstencaoVotes);
 
+    const Bar: React.FC<{ label: string, count: number, percent: number, colorClass: string, bgClass: string, icon: string }> = ({ label, count, percent, colorClass, bgClass, icon }) => (
+        <div className="mb-4 last:mb-0">
+            <div className="flex justify-between items-end mb-1">
+                <span className={`font-bold text-sm flex items-center gap-2 ${colorClass}`}>
+                    <span>{icon}</span> {label}
+                </span>
+                <div className="text-right">
+                    <span className={`text-lg font-black ${colorClass}`}>{percent}%</span>
+                    <span className="text-xs text-slate-400 ml-2 font-medium">({count} votos)</span>
+                </div>
+            </div>
+            <div className={`w-full rounded-full h-4 ${bgClass} overflow-hidden`}>
+                <div 
+                    className={`h-full rounded-full transition-all duration-1000 ease-out shadow-sm relative ${colorClass.replace('text-', 'bg-')}`} 
+                    style={{ width: `${percent}%` }}
+                >
+                    <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
+                </div>
+            </div>
+        </div>
+    );
+
     return (
-        <section className="bg-white rounded-lg sm:rounded-xl lg:rounded-2xl shadow-xl p-3 sm:p-6 lg:p-8 mx-1 sm:mx-2">
-            <h2 className="text-lg sm:text-xl lg:text-2xl font-semibold text-gray-800 mb-4 sm:mb-6 text-center px-2">Resultados da Votação</h2>
-            <div className="space-y-3 sm:space-y-4 lg:space-y-6">
-                <div className="text-center bg-gray-50 rounded-lg p-3 sm:p-4">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-700">Total de Votos</h3>
-                    <p className="text-2xl sm:text-3xl font-bold text-indigo-600">{totalVotes}</p>
+        <section className="glass rounded-3xl shadow-xl p-6 md:p-8 mx-1 sm:mx-2 animate-fade-in border border-white/60">
+            <div className="text-center mb-6">
+                <h2 className="text-xl font-bold text-slate-800">Resultados Oficiais</h2>
+                <div className="inline-block mt-2 px-4 py-1 bg-slate-100 rounded-full text-xs font-bold text-slate-500">
+                    Total Computado: <span className="text-indigo-600 text-base">{totalVotes}</span>
                 </div>
-                <div className="space-y-3 sm:space-y-4">
-                    {/* SIM */}
-                    <div className="bg-green-50 rounded-lg p-3 sm:p-4">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-1 sm:gap-0">
-                            <span className="font-semibold text-green-800 text-sm sm:text-base">✅ SIM</span>
-                            <span className="font-bold text-green-600 text-sm sm:text-base">{simVotes} votos ({simPercent}%)</span>
-                        </div>
-                        <div className="w-full bg-green-200 rounded-full h-3 sm:h-4">
-                            <div className="result-bar bg-green-500 h-3 sm:h-4 rounded-full" style={{ width: `${simPercent}%` }}></div>
-                        </div>
-                    </div>
-                    {/* NÃO */}
-                    <div className="bg-red-50 rounded-lg p-3 sm:p-4">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-1 sm:gap-0">
-                            <span className="font-semibold text-red-800 text-sm sm:text-base">❌ NÃO</span>
-                            <span className="font-bold text-red-600 text-sm sm:text-base">{naoVotes} votos ({naoPercent}%)</span>
-                        </div>
-                        <div className="w-full bg-red-200 rounded-full h-3 sm:h-4">
-                            <div className="result-bar bg-red-500 h-3 sm:h-4 rounded-full" style={{ width: `${naoPercent}%` }}></div>
-                        </div>
-                    </div>
-                    {/* ABSTENÇÃO */}
-                    <div className="bg-yellow-50 rounded-lg p-3 sm:p-4">
-                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 gap-1 sm:gap-0">
-                            <span className="font-semibold text-yellow-800 text-sm sm:text-base">⚪ ABSTENÇÃO</span>
-                            <span className="font-bold text-yellow-600 text-sm sm:text-base">{abstencaoVotes} votos ({abstencaoPercent}%)</span>
-                        </div>
-                        <div className="w-full bg-yellow-200 rounded-full h-3 sm:h-4">
-                            <div className="result-bar bg-yellow-500 h-3 sm:h-4 rounded-full" style={{ width: `${abstencaoPercent}%` }}></div>
-                        </div>
-                    </div>
-                </div>
+            </div>
+            
+            <div className="space-y-2">
+                <Bar 
+                    label="SIM (Aprovar)" 
+                    count={simVotes} 
+                    percent={simPercent} 
+                    colorClass="text-green-600" 
+                    bgClass="bg-green-100"
+                    icon="✅" 
+                />
+                <Bar 
+                    label="NÃO (Rejeitar)" 
+                    count={naoVotes} 
+                    percent={naoPercent} 
+                    colorClass="text-red-600" 
+                    bgClass="bg-red-100"
+                    icon="❌"
+                />
+                <Bar 
+                    label="ABSTENÇÃO" 
+                    count={abstencaoVotes} 
+                    percent={abstencaoPercent} 
+                    colorClass="text-yellow-600" 
+                    bgClass="bg-yellow-100"
+                    icon="✋"
+                />
             </div>
         </section>
     );
-};
+});
 
 export default ResultsSection;
